@@ -1,0 +1,13 @@
+{
+  "name": "baize",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Baize: 8-ball pool for iPhone, as an installable web app.",
+  "type": "module",
+  "scripts": {
+    "test": "node --test test/*.test.mjs",
+    "build": "node tools/build.mjs",
+    "start": "node tools/build.mjs && node tools/serve.mjs 8080 /pool/"
+  },
+  "engines": { "node": ">=20" }
+}

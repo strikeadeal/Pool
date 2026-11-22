@@ -1,0 +1,298 @@
+<!doctype html>
+<html lang="en-AU">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Baize">
+<meta name="application-name" content="Baize">
+<meta name="theme-color" content="#070a0b">
+<meta name="color-scheme" content="dark">
+<meta name="format-detection" content="telephone=no">
+<meta name="description" content="Baize: 8-ball pool for iPhone. Pass and play, or take on the computer.">
+<title>Baize</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<!-- startup-images -->
+<link rel="apple-touch-startup-image" media="screen and (device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="icons/splash/320x568@2-portrait.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 320px) and (device-height: 568px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" href="icons/splash/320x568@2-landscape.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="icons/splash/375x667@2-portrait.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 375px) and (device-height: 667px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" href="icons/splash/375x667@2-landscape.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/splash/414x736@3-portrait.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 414px) and (device-height: 736px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)" href="icons/splash/414x736@3-landscape.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/splash/375x812@3-portrait.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 375px) and (device-height: 812px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)" href="icons/splash/375x812@3-landscape.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: portrait)" href="icons/splash/414x896@2-portrait.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 2) and (orientation: landscape)" href="icons/splash/414x896@2-landscape.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/splash/414x896@3-portrait.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 414px) and (device-height: 896px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)" href="icons/splash/414x896@3-landscape.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/splash/390x844@3-portrait.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 390px) and (device-height: 844px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)" href="icons/splash/390x844@3-landscape.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/splash/428x926@3-portrait.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 428px) and (device-height: 926px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)" href="icons/splash/428x926@3-landscape.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/splash/393x852@3-portrait.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 393px) and (device-height: 852px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)" href="icons/splash/393x852@3-landscape.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/splash/430x932@3-portrait.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 430px) and (device-height: 932px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)" href="icons/splash/430x932@3-landscape.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/splash/402x874@3-portrait.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 402px) and (device-height: 874px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)" href="icons/splash/402x874@3-landscape.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/splash/440x956@3-portrait.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 440px) and (device-height: 956px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)" href="icons/splash/440x956@3-landscape.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 420px) and (device-height: 912px) and (-webkit-device-pixel-ratio: 3) and (orientation: portrait)" href="icons/splash/420x912@3-portrait.png">
+<link rel="apple-touch-startup-image" media="screen and (device-width: 420px) and (device-height: 912px) and (-webkit-device-pixel-ratio: 3) and (orientation: landscape)" href="icons/splash/420x912@3-landscape.png">
+<!-- /startup-images -->
+<link rel="stylesheet" href="css/app.css">
+<script type="module" src="js/main.js"></script>
+</head>
+<body>
+<div id="probe-safe" aria-hidden="true"></div>
+<div id="probe-vh" aria-hidden="true"></div>
+<div id="app" class="booting">
+  <canvas id="gl" aria-hidden="true"></canvas>
+
+  <header id="hud" hidden>
+    <button class="icon-btn" id="menu-btn" aria-label="Menu"><span class="burger"></span></button>
+    <div class="plate" id="plate-0"><div class="pname"></div><div class="chips" role="img"></div></div>
+    <div class="plate" id="plate-1"><div class="pname"></div><div class="chips" role="img"></div></div>
+    <button class="icon-btn" id="status-btn" aria-label="Table status"><span aria-hidden="true">i</span></button>
+  </header>
+
+  <div id="controls" hidden>
+    <div id="power" role="slider" aria-label="Power. Drag down and release to shoot." aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" tabindex="0">
+      <div class="track"><div class="fill"></div></div>
+      <div class="grip" aria-hidden="true"><span></span><span></span><span></span></div>
+      <div class="pct" aria-hidden="true">0%</div>
+      <div class="hint" aria-hidden="true">PULL</div>
+    </div>
+    <div id="roller" role="slider" aria-label="Fine aim. Drag to turn the cue a little." tabindex="0">
+      <div class="ribs"></div><div class="mark"></div>
+    </div>
+    <button id="spin-btn" aria-label="Spin: centre ball. Tap to change.">
+      <span class="ball"></span><span class="dot"></span>
+    </button>
+  </div>
+
+  <div id="assist" hidden>
+    <button class="chip-btn" id="as-pick">Choose shot…</button>
+    <div class="row">
+      <button class="chip-btn" data-nudge="-1" aria-label="Turn aim left a lot">«</button>
+      <button class="chip-btn" data-nudge="-0.1" aria-label="Turn aim left a little">‹</button>
+      <button class="chip-btn" data-nudge="0.1" aria-label="Turn aim right a little">›</button>
+      <button class="chip-btn" data-nudge="1" aria-label="Turn aim right a lot">»</button>
+    </div>
+    <div class="row">
+      <button class="chip-btn" data-power="-0.05" aria-label="Less power">−</button>
+      <output id="as-power" aria-live="polite">40%</output>
+      <button class="chip-btn" data-power="0.05" aria-label="More power">+</button>
+      <button class="chip-btn primary" id="as-shoot">Shoot</button>
+    </div>
+  </div>
+
+  <div id="banner" aria-hidden="true"><div class="b-title"></div><div class="b-detail"></div></div>
+  <div id="coach" aria-hidden="true"><div class="c-text"></div></div>
+  <div id="thinking" hidden><span></span><span></span><span></span></div>
+  <div id="update-pill" hidden role="status">Update ready, it installs when you return to the menu</div>
+
+  <!-- Title -->
+  <section class="screen" id="title" aria-label="Baize">
+    <div class="title-inner">
+      <h1 class="wordmark">Baize</h1>
+      <p class="tag">8-ball pool</p>
+      <nav class="menu">
+        <button class="btn primary" id="t-continue" hidden>Continue</button>
+        <button class="btn" data-go="setup-cpu">Play the computer</button>
+        <button class="btn" data-go="setup-pvp">Pass and play</button>
+        <button class="btn" data-go="practice">Practice</button>
+        <div class="menu-row">
+          <button class="btn small" data-go="help">How to play</button>
+          <button class="btn small" data-go="stats">Stats</button>
+          <button class="btn small" data-go="settings">Settings</button>
+        </div>
+      </nav>
+    </div>
+  </section>
+
+  <!-- Setup -->
+  <section class="screen sheet" id="setup" hidden aria-labelledby="setup-h">
+    <div class="card">
+      <h2 id="setup-h">New game</h2>
+      <div id="setup-cpu">
+        <p class="label" id="lvl-label">Computer level</p>
+        <div class="seg" role="radiogroup" aria-labelledby="lvl-label">
+          <button role="radio" data-level="1">Easy</button>
+          <button role="radio" data-level="2">Medium</button>
+          <button role="radio" data-level="3">Hard</button>
+        </div>
+        <label class="field">Your name<input id="name-solo" maxlength="14" autocomplete="off" spellcheck="false"></label>
+      </div>
+      <div id="setup-pvp">
+        <label class="field">Player 1<input id="name-0" maxlength="14" autocomplete="off" spellcheck="false"></label>
+        <label class="field">Player 2<input id="name-1" maxlength="14" autocomplete="off" spellcheck="false"></label>
+        <p class="fine">Player 1 breaks. Pass the phone when the banner says so.</p>
+      </div>
+      <div class="actions">
+        <button class="btn" data-back>Back</button>
+        <button class="btn primary" id="setup-start">Rack ’em</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Pause -->
+  <section class="screen sheet" id="pause" hidden aria-labelledby="pause-h">
+    <div class="card">
+      <h2 id="pause-h">Paused</h2>
+      <div class="menu">
+        <button class="btn primary" id="p-resume">Resume</button>
+        <button class="btn" id="p-rerack" hidden>Re-rack</button>
+        <button class="btn" data-go="help">How to play</button>
+        <button class="btn" data-go="settings">Settings</button>
+        <button class="btn" id="p-quit">Save and quit to menu</button>
+        <button class="btn danger" id="p-forfeit">Concede this game</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Decision (illegal break, 8 on the break) -->
+  <section class="screen sheet" id="decision" hidden role="dialog" aria-modal="true" aria-labelledby="dec-h">
+    <div class="card">
+      <h2 id="dec-h"></h2>
+      <p id="dec-p"></p>
+      <div class="menu" id="dec-opts"></div>
+    </div>
+  </section>
+
+  <!-- Game over -->
+  <section class="screen sheet" id="over" hidden role="dialog" aria-modal="true" aria-labelledby="over-h">
+    <div class="card center">
+      <div class="trophy" aria-hidden="true"></div>
+      <h2 id="over-h"></h2>
+      <p id="over-p"></p>
+      <dl class="over-stats" id="over-stats"></dl>
+      <div class="actions">
+        <button class="btn" id="o-menu">Menu</button>
+        <button class="btn primary" id="o-again">Play again</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Spin picker -->
+  <section class="screen sheet" id="spin" hidden role="dialog" aria-modal="true" aria-labelledby="spin-h">
+    <div class="card center">
+      <h2 id="spin-h">Spin</h2>
+      <div id="spin-pad" role="application" aria-label="Drag to place where the cue hits the ball">
+        <div class="pad-ball"></div><div class="pad-limit"></div><div class="pad-cross"></div><div class="pad-dot"></div>
+      </div>
+      <p class="fine" id="spin-desc">Centre ball</p>
+      <div class="seg" id="spin-presets">
+        <button data-spin="0,0.4">Follow</button>
+        <button data-spin="0,-0.45">Draw</button>
+        <button data-spin="-0.4,0">Left</button>
+        <button data-spin="0.4,0">Right</button>
+      </div>
+      <div class="actions">
+        <button class="btn" id="spin-reset">Centre</button>
+        <button class="btn primary" id="spin-done">Done</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- Assisted shot list -->
+  <section class="screen sheet" id="shots" hidden role="dialog" aria-modal="true" aria-labelledby="shots-h">
+    <div class="card">
+      <h2 id="shots-h">Choose a shot</h2>
+      <ul class="list" id="shots-list"></ul>
+      <div class="actions"><button class="btn" data-back>Close</button></div>
+    </div>
+  </section>
+
+  <!-- Settings -->
+  <section class="screen sheet" id="settings" hidden aria-labelledby="settings-h">
+    <div class="card">
+      <h2 id="settings-h">Settings</h2>
+      <div class="opts">
+        <label class="opt"><span>Sound</span><input type="checkbox" id="s-sound"></label>
+        <label class="opt"><span>Haptics <small>where the phone supports them</small></span><input type="checkbox" id="s-haptics"></label>
+        <div class="opt"><span id="s-guide-l">Aim guide</span>
+          <div class="seg" role="radiogroup" aria-labelledby="s-guide-l" id="s-guide">
+            <button role="radio" data-v="off">Minimal</button><button role="radio" data-v="short">Standard</button><button role="radio" data-v="long">Long</button>
+          </div>
+        </div>
+        <label class="opt"><span>Left-handed controls</span><input type="checkbox" id="s-left"></label>
+        <div class="opt"><span id="s-motion-l">Reduce motion</span>
+          <div class="seg" role="radiogroup" aria-labelledby="s-motion-l" id="s-motion">
+            <button role="radio" data-v="system">System</button><button role="radio" data-v="on">On</button><button role="radio" data-v="off">Off</button>
+          </div>
+        </div>
+        <label class="opt"><span>Instant shots <small>skip the ball animation</small></span><input type="checkbox" id="s-instant"></label>
+        <label class="opt"><span>Assisted aiming <small>pick a ball and pocket from a list, buttons instead of dragging</small></span><input type="checkbox" id="s-assist"></label>
+      </div>
+      <p class="fine version" id="version" tabindex="0">Baize</p>
+      <div class="actions"><button class="btn primary" data-back>Done</button></div>
+    </div>
+  </section>
+
+  <!-- Stats -->
+  <section class="screen sheet" id="stats" hidden aria-labelledby="stats-h">
+    <div class="card">
+      <h2 id="stats-h">Stats</h2>
+      <dl class="stat-grid" id="stat-grid"></dl>
+      <div class="actions"><button class="btn primary" data-back>Done</button></div>
+    </div>
+  </section>
+
+  <!-- Help -->
+  <section class="screen sheet" id="help" hidden aria-labelledby="help-h">
+    <div class="card scroll">
+      <h2 id="help-h">How to play</h2>
+      <ol class="how">
+        <li><b>Aim:</b> drag anywhere on the table to turn the cue. Tap a spot to point straight at it.</li>
+        <li><b>Fine-tune:</b> slide the ribbed roller for tiny adjustments.</li>
+        <li><b>Shoot:</b> pull the power bar down, then let go. Slide back to the top to cancel.</li>
+        <li><b>Spin:</b> tap the little cue ball to hit above, below or to the side of centre.</li>
+      </ol>
+      <h3>8-ball rules</h3>
+      <ul class="how">
+        <li>Break from behind the line. Pot a ball or send four to a cushion, or it’s an illegal break.</li>
+        <li>The table is open after the break. The first ball you pot legally makes that group (solids 1–7 or stripes 9–15) yours.</li>
+        <li>Hit one of your own balls first, then pot a ball or make any ball touch a cushion. Pot one of yours to keep shooting.</li>
+        <li>Fouls give your opponent <b>ball in hand</b>: they can place the cue ball anywhere. Potted balls stay down.</li>
+        <li>Clear your group, then pot the 8 in the pocket you call (the game suggests one; tap a pocket to change it).</li>
+        <li>You lose if you pot the 8 early, in the wrong pocket, or on a foul.</li>
+      </ul>
+      <p class="fine">Tap the screen during a shot to fast-forward.</p>
+      <div class="actions"><button class="btn primary" data-back>Got it</button></div>
+    </div>
+  </section>
+
+  <!-- Diagnostics (hidden: long-press the version label in Settings) -->
+  <section class="screen sheet" id="diag" hidden aria-labelledby="diag-h">
+    <div class="card scroll">
+      <h2 id="diag-h">Diagnostics</h2>
+      <pre id="diag-vp"></pre>
+      <div class="opt"><span id="d-vs-l">Viewport source</span>
+        <div class="seg" role="radiogroup" aria-labelledby="d-vs-l" id="d-vsource">
+          <button role="radio" data-v="auto">Auto</button><button role="radio" data-v="vh">100vh</button><button role="radio" data-v="inner">innerHeight</button><button role="radio" data-v="fixed">Fixed</button>
+        </div>
+      </div>
+      <label class="opt"><span>Show frame rate</span><input type="checkbox" id="d-fps"></label>
+      <label class="opt"><span>Record touches</span><input type="checkbox" id="d-rec"></label>
+      <p class="fine" id="d-rec-info"></p>
+      <div class="menu-row">
+        <button class="btn small" id="d-share">Share…</button>
+        <button class="btn small" id="d-copy">Copy</button>
+        <button class="btn small" id="d-clear">Clear</button>
+      </div>
+      <div class="actions"><button class="btn primary" data-back>Close</button></div>
+    </div>
+  </section>
+
+  <div id="fps" hidden aria-hidden="true"></div>
+  <div id="live" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+  <label id="haptic" aria-hidden="true"><input type="checkbox" switch tabindex="-1"></label>
+</div>
+<noscript><p style="color:#eee;padding:2em">Baize needs JavaScript.</p></noscript>
+</body>
+</html>
