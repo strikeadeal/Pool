@@ -123,6 +123,8 @@ button { font: inherit; color: inherit; touch-action: manipulation; }
   border: 1px solid var(--line); border-left: 4px solid var(--brass); box-shadow: 0 10px 30px rgba(0,0,0,.45); pointer-events: none;
   opacity: 0; transform: translate(-50%, calc(-100% + 8px)); transition: opacity .22s var(--ease), transform .22s var(--ease); }
 #banner.show { opacity: 1; transform: translate(-50%, -100%); }
+#banner.top { transform: translate(-50%, -8px); }
+#banner.top.show { transform: translate(-50%, 0); }
 #banner.foul { border-left-color: var(--danger); }
 #banner.win { border-left-color: #7fd18b; }
 .b-title { font-weight: 750; font-size: 15px; }

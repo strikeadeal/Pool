@@ -240,6 +240,11 @@ export class Renderer {
   drawCue(tipX, tipY, dx, dy, alpha = 1) {
     const len = 1.45, maxW = 0.0145;
     const cx = tipX - dx * len / 2, cy = tipY - dy * len / 2;
+    // Clip the cue to the play area between the side columns and below the HUD, so it never
+    // runs over the controls or the player plates. GL scissor y counts up from the bottom.
+    const gl = this.gl, r = this.lay.region, d = this.dpr;
+    gl.enable(gl.SCISSOR_TEST);
+    gl.scissor(Math.round(r.x * d), 0, Math.round(r.w * d), Math.round((this.lay.h - r.y) * d));
     // shadow on the cloth, offset as if from above-left lamp
     const u0 = this.use(this.shape);
     this.gl.uniform4fv(u0.u_color, [0, 0, 0, 0.28 * alpha]); this.gl.uniform1f(u0.u_mode, 0); this.gl.uniform1f(u0.u_dash, 0);
@@ -248,6 +253,7 @@ export class Renderer {
     this.gl.activeTexture(this.gl.TEXTURE0); this.gl.bindTexture(this.gl.TEXTURE_2D, this.cueTex);
     this.gl.uniform1i(u.u_tex, 0); this.gl.uniform1f(u.u_tip, 0.45); this.gl.uniform1f(u.u_alpha, alpha);
     this.quad(u, cx, cy, -dx * len / 2, -dy * len / 2, -dy * maxW, dx * maxW);
+    gl.disable(gl.SCISSOR_TEST);
   }
 
   // scene: { balls:{x,y,on,q}, drops:[{i,x,y,s,f}], under:[fn], over:[fn], cue:{x,y,dx,dy,a}|null }

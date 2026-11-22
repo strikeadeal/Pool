@@ -154,9 +154,10 @@ export function judge(prev, outcome, balls) {
     if (!legal) {
       s.phase = 'decision';
       s.turn = opp;
-      s.decision = { kind: 'illegalBreak', who: opp, scratch, eight: eightIdx >= 0 };
+      const reason = 'No ball potted and fewer than four balls reached a cushion.';
+      s.decision = { kind: 'illegalBreak', who: opp, scratch, eight: eightIdx >= 0, reason };
       report.title = 'Illegal break';
-      report.detail = `No ball potted and fewer than four balls reached a cushion. ${says(names[opp], 'chooses', 'choose')} what happens next.`;
+      report.detail = `${reason} ${says(names[opp], 'chooses', 'choose')} what happens next.`;
       report.turnChange = true;
       s.fouls[me] += scratch ? 1 : 0;
       return { state: s, report };
@@ -191,7 +192,7 @@ export function judge(prev, outcome, balls) {
     if (objPotted.length) {
       s.visit = objPotted.length;
       s.bestRun[me] = Math.max(s.bestRun[me], s.visit);
-      report.title = `Good break: potted ${objPotted.length}`;
+      report.title = `Good break: potted ${objPotted.join(', ')}`;
       report.detail = `${says(names[me], 'shoots', 'shoot')} again. The table is open.`;
     } else {
       s.turn = opp; s.visit = 0;
