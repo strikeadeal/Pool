@@ -24,6 +24,12 @@ html, body {
 }
 /* Body is fixed so the document never scrolls, and overflow stays visible so #app can be sized
    to the real screen even when iOS reports a shorter viewport (see layout.js). */
+/* iOS 26 Home Screen apps (WebKit bug 301108): with viewport-fit=cover and a black-translucent
+   status bar, the viewport comes out short by the status-bar height, and WebKit stops drawing
+   everything, fixed elements included, at that short edge: a black band at the bottom. The
+   viewport is full height only once the document is at least screen-tall, so grow html by the
+   top inset. min() with 100lvh keeps it from ever scrolling. Class set by layout.js measure(). */
+html.standalone { min-height: min(100lvh, calc(100% + env(safe-area-inset-top))); }
 body { position: fixed; top: 0; left: 0; width: 100%; height: 100%; overflow: visible; touch-action: none; }
 /* Oversized backdrop: any band iOS leaves uncovered shows the game background, never white. */
 body::before { content: ""; position: fixed; left: -50vw; top: -50vh; width: 200vw; height: 200vh; background: var(--bg); z-index: -1; }

@@ -56,6 +56,7 @@ Command: `node tools/e2e/verify.cjs chromium --shots`. It runs against the **pro
 
 - Add to Home Screen: name, icon and launch image.
 - **The standalone viewport:** full-screen with no band at the top or bottom, in portrait and landscape, on your iOS version. This is the bug that bit you last time. My fix is designed from bug reports, not observed on a device.
+- **The iOS 26 bottom-band fix** (DECISIONS.md §9.1). Seen on your iPhone, fixed from WebKit bug 301108 reports; Chromium can't reproduce the short viewport, so only your phone can confirm it.
 - Real `env(safe-area-inset-*)` values, and whether my iOS 26.1 zero-top-inset heuristic ever kicks in.
 - **Touch feel** with real fingers: aim gain, roller gain, power travel and curve.
 - **120 Hz ProMotion:** the maths is rate-independent and tested, but Safari's actual frame rate isn't.

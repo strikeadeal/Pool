@@ -27,6 +27,7 @@ export function measure(source = 'auto') {
   const q = new URLSearchParams(location.search);
   if (q.has('insets')) { const [t, r, b, l] = q.get('insets').split(',').map(Number); Object.assign(insets, { t, r, b, l }); }
   const standalone = q.has('standalone') ? q.get('standalone') === '1' : isStandalone();
+  document.documentElement.classList.toggle('standalone', standalone);  // iOS 26 bottom-band fix, app.css
   const iw = window.innerWidth, ih = window.innerHeight;
   const vvH = window.visualViewport ? window.visualViewport.height : ih;
   const vhH = vh.offsetHeight;

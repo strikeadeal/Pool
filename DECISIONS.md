@@ -185,8 +185,9 @@ The base is the **WPA World Standardised Rules for 8-ball** (2025 edition, verif
    - It re-measures on `resize`, `orientationchange` and `visualViewport.resize`, plus 150 ms and 600 ms after rotation.
    - `body` is `position: fixed` with `overflow: visible`. The app can then be taller than the reported viewport without clipping, and the page still can't scroll.
    - `html`/`body` and an oversized backdrop are painted in the game's background colour, so any band iOS leaves can never show as a white or black strip.
-   - **The risk I couldn't remove:** if a future iOS really does shrink the page (opaque status bar) while `100vh` still reports the full screen, this picks the larger number, and the bottom controls sit about one status bar too low.
-     - The Diagnostics "Viewport source" switch is the escape hatch for that case, and it takes effect without a rebuild.
+   - **Seen on a real iPhone (iOS 26):** the layout was sized correctly, but WebKit stopped drawing everything, fixed elements included, one status-bar height (59 pt) above the bottom, leaving a black band that cut off the spin and power controls. This is WebKit bug 301108: an installed app with `viewport-fit=cover` and a black-translucent status bar gets a short viewport while the document is shorter than the screen.
+     - Fix: in standalone, `html { min-height: min(100lvh, calc(100% + env(safe-area-inset-top))) }`. The document becomes screen-tall, so iOS gives the full viewport. The `min()` cap means it can never scroll, and it does nothing when the top inset is 0 (landscape, Safari tab).
+     - The `standalone` class is set from JavaScript (`navigator.standalone`), because `display-mode` is reported as unreliable on iOS.
    - Diagnostics shows every raw measurement, and there's a hidden "Viewport source" override (Auto / 100vh / innerHeight), so a phone can be fixed without a new build.
 2. **Touch feel**
    - All feel values are in `feel.js`.
