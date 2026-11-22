@@ -16,7 +16,7 @@ Treat every iOS-specific behaviour (standalone viewport, safe areas, haptics, au
 | `storage.test.mjs` (5) | Versioned keys and revisions. A stale tab can't overwrite newer data. Older code never writes over a newer schema. Read-modify-write stats don't lose records across tabs. Corrupt data falls back. |
 | `game.test.mjs` (2) | Six complete computer-vs-computer games through the real physics and rules, with state invariants checked every shot. **Hard beats Easy in at least 70% of 10 games.** |
 
-## 2. Browser checks (Chromium 153 headless, SwiftShader WebGL, Playwright 1.63): 22 pass
+## 2. Browser checks (Chromium 153 headless, SwiftShader WebGL, Playwright 1.63): 24 pass
 
 Command: `node tools/e2e/verify.cjs chromium --shots`. It runs against the **production build served under `/pool/`** by a server that mimics GitHub Pages, including its 10-minute cache header.
 
@@ -24,6 +24,7 @@ Command: `node tools/e2e/verify.cjs chromium --shots`. It runs against the **pro
 |---|---|
 | Layout, emulated safe areas, at SE (667×375), standard (852×393) and Pro Max (932×430), landscape. Controls are on screen, inside the safe area, and clear of the table; power is left of it, the roller right of it, spin top right. | 3/3. Ball sizes: 14.1–16.5 px |
 | Assisted-aiming layout at standard and SE sizes, right- and left-handed. No overlaps. | 4/4 |
+| **Every dialog fits** at standard (852×393 with iPhone insets) and SE size: its buttons are fully visible without scrolling and above the home indicator. Added after your phone showed the game-over buttons cut off; it fails on the old CSS. | 2/2 |
 | **Portrait:** the rotate screen covers the game, no frames run (a shot in flight stops dead), and the shot finishes after turning back | pass |
 | Aim drag gives the same result with 8, 16 or 64 touch events for the same path (the 60 Hz versus 120 Hz question) | 0.000° spread |
 | Fine roller gives the same result at any event rate | exact |

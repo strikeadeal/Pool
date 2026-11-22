@@ -123,6 +123,7 @@ The base is the **WPA World Standardised Rules for 8-ball** (2025 edition, verif
   - The manifest says `landscape` anyway, for Android and desktop installs.
 - **Arrangement** follows the common mobile-pool convention you pointed me at: menu top left, player plates (name plus seven ball slots) meeting in the middle around a table-status button, spin top right, power down the left edge, fine-aim roller down the right edge, the table centred between them, and turn messages as a toast along the bottom of the table. Left-handed swaps the two side columns.
   - Only the arrangement is shared. The art (teal cloth, walnut rails, brass accents, the cue, no avatars or badges) stays Baize's own; copying the reference's look would recreate that game, which the brief ruled out.
+- **Dialogs** (game over, pause, spin, settings) keep their buttons pinned to the bottom of the card, and on short screens the cards are compacted and the spin picker goes two-column. A phone showed the game-over buttons cut off by the home-indicator margin; a browser check now covers every dialog.
 - **Table size:** the 7 ft bar-box size. It's limited by screen height, not width. Measured ball diameters: SE 14.1 pt, iPhone 15 size 14.7 pt, Pro Max 16.5 pt.
 
   Precision comes from angular drag and the roller, not from tapping balls.

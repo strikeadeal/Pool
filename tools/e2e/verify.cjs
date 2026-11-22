@@ -115,6 +115,33 @@ async function playToEnd(page, maxTurns = 300) {
       }
     }
 
+    // ---------- 1a. every dialog fits: its buttons are visible without scrolling, above the home indicator ----------
+    for (const [name, vw, vh, ins] of [['standard', 852, 393, '0,59,21,59'], ['SE', 667, 375, '0,0,0,0']]) {
+      const { page, context, url } = await newPage(browser, { w: vw, h: vh, dpr: 2, insets: ins });
+      await page.goto(url); await page.waitForTimeout(400);
+      await page.click('[data-go="setup-cpu"]'); await page.click('#setup-start'); await page.waitForTimeout(400);
+      const sab = Number(ins.split(',')[2]);
+      const bad = await B(page, ({ vh, sab }) => {
+        const out = [];
+        document.getElementById('over-h').textContent = 'Computer wins';
+        document.getElementById('over-p').textContent = 'Computer potted the 8 in the called pocket.';
+        document.getElementById('over-stats').innerHTML = ['You: balls potted', 'You: best run', 'Computer: balls potted', 'Computer: best run'].map((t, i) => `<dt>${t}</dt><dd>${i + 2}</dd>`).join('');
+        for (const s of document.querySelectorAll('section.sheet')) {
+          s.hidden = false;
+          const c = s.querySelector('.card').getBoundingClientRect();
+          for (const btn of s.querySelectorAll('.actions button, #pause .menu button:not([hidden])')) {
+            const r = btn.getBoundingClientRect();
+            if (r.top < c.top - 0.5 || r.bottom > c.bottom + 0.5 || r.bottom > vh - sab + 0.5) out.push(`${s.id}: ${btn.textContent.trim()}`);
+          }
+          if (s.id !== 'over') s.hidden = true;
+        }
+        return out;
+      }, { vh, sab });
+      ok(`dialogs fit at ${name} landscape: every dialog's buttons visible, above the home indicator`, bad.length === 0, bad.join(', '));
+      if (SHOTS && name === 'standard') await page.screenshot({ path: `${OUT}/standard-landscape-gameover.jpg`, quality: 82, type: 'jpeg' });
+      await context.close();
+    }
+
     // ---------- 1b. assisted aiming and left-handed layouts ----------
     for (const [orient, vw, vh, ins] of [['standard', 852, 393, '0,59,21,59'], ['SE', 667, 375, '0,0,0,0']]) {
       for (const left of [false, true]) {
@@ -198,7 +225,6 @@ async function playToEnd(page, maxTurns = 300) {
       await page.waitForSelector('#over:not([hidden])', { timeout: 5000 }).catch(() => {});
       const shown = await page.isVisible('#over');
       ok('complete pass-and-play game reaches a winner with the game-over screen', done && over.phase === 'over' && shown, `${over.shots} shots, ${((Date.now() - t0) / 1000).toFixed(0)} s: ${over.reason}`);
-      if (SHOTS) await page.screenshot({ path: `${OUT}/standard-landscape-gameover.jpg`, quality: 82, type: 'jpeg' });
       await context.close();
     }
 

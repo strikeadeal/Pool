@@ -1,56 +1,55 @@
 # Baize
 
-8-ball pool for iPhone, built as a home-screen web app.
+8-ball pool for iPhone, built as a home-screen web app. Played in landscape.
 
 - Play pass-and-play on one phone, or against the computer at three levels. There's also a free practice table.
 - Physics are deterministic, rules are WPA-based, and it works offline.
 - No accounts, ads, coins or servers.
 
+**Live:** https://strikeadeal.github.io/Pool/
+
 ![Baize on an iPhone-sized screen](docs/screenshots/standard-landscape-game.jpg)
-
-## Before you deploy: two GitHub things to check
-
-1. **The live URL is probably `https://strikeadeal.github.io/Pool/`, not `/pool/`.** The repository is named `Pool` with a capital P, and GitHub Pages paths are case-sensitive.
-   - The game uses only relative paths, so it works at either URL.
-   - The URL matters because Add to Home Screen ties the installed app (and its saved games) to the exact URL it was installed from.
-   - If you want `/pool/`, rename the repository to `pool` (Settings → General → Repository name) **before** installing on your phone.
-2. **The repository has no `main` branch yet.** All the work is on `claude/iphone-pool-game-aiver9`. Make it `main` by doing one of the following:
-   - In GitHub, go to Branches, rename `claude/iphone-pool-game-aiver9` to `main`, and set it as the default branch.
-   - Or run `git push origin claude/iphone-pool-game-aiver9:main` and set `main` as the default branch.
-
-## One-time GitHub setup
-
-1. Settings → Pages → Build and deployment → **Source: GitHub Actions**.
-2. That's all. Every push to `main` runs the tests, builds and deploys.
-   - If you created `main` by renaming a branch, no push event fires. Start the first deploy from Actions → **Test and deploy** → **Run workflow**.
 
 ## Install it on your iPhone
 
-1. Open the site in **Safari**.
+1. Open https://strikeadeal.github.io/Pool/ in **Safari**.
 2. Tap the Share button, then **Add to Home Screen**, then **Add**.
-3. Launch Baize from its icon. It runs full-screen, **in landscape only**. Holding the phone upright shows a "turn sideways" screen and pauses the game.
+3. Launch Baize from its icon, holding the phone sideways. It runs full-screen.
+   - Holding the phone upright shows a "turn your phone sideways" screen and pauses the game, including a shot in progress. It carries on when you turn back.
    - If the screen doesn't turn, Portrait Orientation Lock is on: switch it off in Control Centre. iOS doesn't let a web app override it.
 4. Open it once while online. After that it works in Airplane Mode.
 
 **Updates:**
-- After you push, the installed app downloads the new version in the background the next time it's opened.
+- After a push to `main`, the installed app downloads the new version in the background the next time it's opened.
 - It switches over at a safe moment: straight after launch, on the menu, or at the end of a game. It never switches in the middle of a game.
-- A small "Updated" note confirms it.
-- There's no need to delete and re-add the app.
+- A small "Updated" note confirms it. There's no need to delete and re-add the app.
 
 **Saved games:**
 - The game saves after every shot and the moment a shot is taken, so it survives a call, locking the phone, or iOS closing the app mid-shot.
 - Safari tabs and the installed app keep **separate** saved games and stats (an iOS rule, not something an app can change).
+
+## The screen
+
+| Where | What |
+|---|---|
+| Top left | Menu: resume, how to play, settings, save and quit, concede (re-rack in practice) |
+| Top middle | The two players. The one to shoot has a gold border. Each has seven ball slots: empty until groups are set, then their balls, with a slot emptying as each is potted. The 8 appears when a player is on it. |
+| Between the players | The 8-ball button. It shows **Break** or **Open** until groups are set; tap it for a summary of the table. |
+| Top right | Spin: the cue ball shows where the cue will hit. |
+| Left edge | Power bar, with a cue inside that slides down as you pull. |
+| Right edge | Fine-aim roller. With assisted aiming on, a button panel replaces it. |
+| Bottom of the table | Turn messages, fouls and results. |
+
+**Left-handed controls** swap the two edges: roller on the left, power on the right.
 
 ## How to play
 
 | | |
 |---|---|
 | **Aim** | Drag anywhere on the table; the cue turns with your finger. Tap a spot to point straight at it. |
-| **Fine-tune** | Slide the ribbed roller down the right edge for small adjustments. |
-| **Shoot** | Pull the power bar on the left edge down and let go. Slide back to the top to cancel. Left-handed controls swap the two sides. |
-| **Spin** | Tap the little cue ball in the top-right corner to set where the cue hits: above for follow, below for draw, sides for english. |
-| **Table status** | Tap the 8-ball between the player names for a spoken and written summary. |
+| **Fine-tune** | Slide the ribbed roller up or down for small adjustments. |
+| **Shoot** | Pull the power bar down and let go. Slide back to the top to cancel. |
+| **Spin** | Tap the cue ball in the top-right corner and drag the red dot: above centre for follow, below for draw, sides for english. Spin resets after every shot. |
 | **Ball in hand** | Drag the cue ball (it has a ring around it) to place it. |
 | **Calling the 8** | The game suggests a pocket (gold ring); tap another pocket to change it. |
 | **Watching** | Tap during a shot to fast-forward. |
@@ -63,6 +62,8 @@ Rules (WPA 8-ball, details and deviations in [DECISIONS.md](DECISIONS.md#2-rules
 - **Fouls:** a foul gives your opponent ball in hand anywhere.
 - **The 8:** clear your group, then pot the 8 in the called pocket. Potting it early, in the wrong pocket, or on a foul loses.
 
+The title screen also has **How to play** and **Stats** (games and wins against each computer level, pot rate, best run and fouls, kept on the phone).
+
 **Settings:**
 - Sound and haptics on or off.
 - Aim guide: Minimal, Standard or Long.
@@ -70,6 +71,16 @@ Rules (WPA 8-ball, details and deviations in [DECISIONS.md](DECISIONS.md#2-rules
 - Reduce motion.
 - Instant shots.
 - Assisted aiming: pick a ball and pocket from a list, with buttons instead of dragging.
+
+## Deployment
+
+Every push to `main` runs the tests, builds and deploys to GitHub Pages (`.github/workflows/deploy.yml`). Pull requests run the tests only. To redeploy without a change, use Actions → **Test and deploy** → **Run workflow**.
+
+One-time settings, already done:
+- Settings → Pages → Build and deployment → **Source: GitHub Actions**.
+- Settings → Environments → `github-pages`: `main` is allowed to deploy. Without it the deploy job fails with no logs.
+
+**The URL is case-sensitive.** The repository is `Pool`, so the site is `/Pool/`. The installed app and its saved games are tied to the exact URL it was installed from, so renaming the repository later means reinstalling.
 
 ## Run it locally
 
@@ -85,7 +96,7 @@ npm start         # builds to dist/ and serves it at http://localhost:8080/pool/
 - **Browser tests** (optional; needs Playwright, `npm i -D playwright && npx playwright install chromium webkit`):
 
   ```sh
-  node tools/e2e/verify.cjs chromium --shots   # 22 checks; screenshots into docs/screenshots
+  node tools/e2e/verify.cjs chromium --shots   # 24 checks; screenshots into docs/screenshots
   node tools/e2e/verify.cjs webkit             # the same checks in WebKit
   ```
 
@@ -100,12 +111,24 @@ npm start         # builds to dist/ and serves it at http://localhost:8080/pool/
 | `src/js/rules.js` | 8-ball rules as pure functions |
 | `src/js/ai.js` | Computer opponent |
 | `src/js/render.js` | WebGL renderer (balls are shaded per pixel, with rolling number decals) |
+| `src/js/textures.js` | Table, rails and pockets, painted once per screen size |
+| `src/js/layout.js` | Viewport measurement (with the iOS workarounds) and where every control goes |
+| `src/js/input.js` | Touch controls: aim, power, roller, spin, ball in hand |
 | `src/js/feel.js` | **Every control feel value, in one commented file** |
 | `src/js/main.js` | Screens, turns, playback, saving, updates |
 | `tools/build.mjs` | Copies `src/` to `dist/` and stamps a version derived from the content into the app and the service worker's precache list (SHA-256, with SRI) |
 | `.github/workflows/deploy.yml` | Test → build → deploy to Pages on push to `main`; tests only on pull requests |
 
 **Diagnostics:** in Settings, long-press the version label for 2 seconds. It shows the measured viewport and safe areas, has a frame-rate meter and a viewport override, and has the **touch recorder**. Switch on "Record touches", play a few shots, then tap Share… to send the JSON.
+
+## Known limits
+
+- **Orientation:** iOS can't lock a web app to landscape, so portrait gets the rotate screen, and Portrait Orientation Lock has to be off.
+- **iOS 26 viewport bug:** installed web apps can get a viewport one status bar short (WebKit bug 301108). The band was seen on a real iPhone and Baize now works around it; see DECISIONS.md §9.
+- **Dialogs** keep their buttons pinned to the bottom so they're always above the home indicator; long ones (settings, help) scroll above the buttons.
+- **Haptics** use an iOS 18 trick (a hidden switch control), which a future iOS may remove. Sound and play are unaffected if it goes.
+- **Separate saves** for Safari tabs and the installed app (iOS rule).
+- **Real-phone checks:** the automated checks run in desktop Chromium. [VERIFICATION.md](VERIFICATION.md) §3–4 lists what only an iPhone can confirm (touch feel, sound, haptics, offline, updates).
 
 ## Documents
 
@@ -119,6 +142,7 @@ npm start         # builds to dist/ and serves it at http://localhost:8080/pool/
 3. **A "pro" mode and deeper stats:** no guide past first contact, and pot percentage by distance and cut angle.
 4. **Ball-ball throw and cue-ball squirt**, as an optional "advanced physics" setting.
 5. **9-ball**, which reuses the physics, renderer and most of the rules plumbing.
+6. **A cloth colour setting** (for example tournament blue). The cloth colour is one constant, painted once.
 
 ## Deliberately left out
 

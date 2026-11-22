@@ -171,6 +171,8 @@ h3 { margin: 18px 0 6px; font-size: 15px; color: var(--brass); letter-spacing: .
 .btn.primary:active { background: linear-gradient(180deg, #d9b45a, #a17a28); }
 .btn.danger { color: #ffb0a6; }
 .actions { display: flex; gap: 10px; margin-top: 18px; }
+/* A dialog's buttons stay pinned to the bottom of its card; longer content scrolls above them. */
+.card .actions { position: sticky; bottom: -22px; margin-bottom: -22px; padding: 10px 0 22px; background: var(--panel); }
 .actions .btn { flex: 1; }
 .label { margin: 4px 0 8px; font-size: 13px; color: var(--muted); font-weight: 600; }
 .fine { font-size: 13px; color: var(--muted); margin: 10px 0 0; }
@@ -217,6 +219,16 @@ pre#diag-vp { font: 11px/1.45 ui-monospace, Menlo, monospace; color: #cfe; backg
 .tag { margin: 12px 0 30px; color: var(--muted); letter-spacing: .32em; text-transform: uppercase; font-size: 12px; font-weight: 700; }
 #title .menu .btn { width: 100%; }
 @media (max-height: 560px) {
+  /* Every iPhone in landscape: keep dialogs inside the ~340 pt above the home indicator. */
+  .screen { padding-top: calc(var(--sat) + 8px); padding-bottom: calc(var(--sab) + 8px); }
+  .card { padding: 16px; }
+  .card .actions { bottom: -16px; margin-bottom: -16px; padding-bottom: 16px; margin-top: 12px; }
+  h2 { font-size: 22px; margin-bottom: 10px; }
+  .trophy { width: 40px; height: 40px; margin-bottom: 8px; }
+  .over-stats { margin-top: 10px; gap: 6px 16px; }
+  #spin .card { max-width: 560px; display: grid; grid-template-columns: auto 1fr; column-gap: 20px; align-items: center; align-content: center; }
+  #spin .card > * { grid-column: 2; }
+  #spin #spin-pad { grid-column: 1; grid-row: 1 / span 4; margin: 0; }
   .wordmark { font-size: 54px; } .tag { margin: 8px 0 16px; }
   #title .title-inner { max-width: 640px; }
   #title .menu { grid-template-columns: repeat(3, 1fr); }
