@@ -138,6 +138,26 @@ test('8 ball: wrong pocket, uncalled, on a foul, or early all lose', () => {
   assert.equal(shot(s, { first: 3, pocketed: [[8, 0]] }).state.winner, 1, '8 early');
 });
 
+test('8 ball: with calling off, the 8 in any pocket wins; fouls and early 8s still lose', () => {
+  const off = (o) => { const s = midGame(o); s.callEight = false; return s; };
+  let s = off({ clear: SOLIDS });
+  assert.ok(Rl.onEight(s)); assert.equal(Rl.needsCall(s), false);
+  let r = shot(s, { first: 8, pocketed: [[8, 5]] });
+  assert.equal(r.state.winner, 0); assert.equal(r.state.winReason, 'Ana potted the 8.');
+  s = off({ clear: SOLIDS });
+  assert.equal(shot(s, { first: 8, pocketed: [[8, 0], [0, 2]] }).state.winner, 1, 'scratch with the 8');
+  s = off();
+  assert.equal(shot(s, { first: 3, pocketed: [[8, 0]] }).state.winner, 1, '8 early');
+  assert.match(Rl.describe(off()), /8-ball: any pocket\./);
+});
+
+test('8 ball: calling defaults on, and a saved game without the field still calls', () => {
+  assert.equal(game().callEight, true);
+  const s = midGame({ clear: SOLIDS }); delete s.callEight; s.called = 3;
+  assert.ok(Rl.needsCall(s));
+  assert.equal(shot(s, { first: 8, pocketed: [[8, 0]] }).state.winner, 1);
+});
+
 test('8 ball: scratching while on the 8 without potting it is only a foul', () => {
   const s = midGame({ clear: SOLIDS }); s.called = 3;
   const { state } = shot(s, { first: 8, pocketed: [[0, 2]] });

@@ -7,7 +7,7 @@ import { measure, computeLayout, toScreen } from './layout.js';
 import { Renderer } from './render.js';
 import { holeCentre } from './textures.js';
 import { attachInput } from './input.js';
-import { play, haptic, unlockAudio, suspendAudio, setSound, setHaptics } from './feedback.js';
+import { play, setRoll, loadSounds, haptic, unlockAudio, suspendAudio, setSound, setHaptics } from './feedback.js';
 import * as Store from './storage.js';
 import { initRecorder, recShot, setRecording, recording, recCount, shareRecording, copyRecording, clearRecording, flush as flushRec } from './recorder.js';
 
@@ -19,7 +19,7 @@ const STROKE = 0.085;      // cue stroke animation, seconds
 const DROP = 0.24;         // pocket drop animation, seconds
 
 const DEFAULT_SETTINGS = { sound: true, haptics: true, guide: 'short', left: false, motion: 'system', instant: false, assist: false,
-  tutorial: 0, names: ['Player 1', 'Player 2'], solo: 'You', level: 2, vsource: 'auto', fps: false, screen: 'title' };
+  tutorial: 0, names: ['Player 1', 'Player 2'], solo: 'You', level: 2, eight: 'call', vsource: 'auto', fps: false, screen: 'title' };
 const DEFAULT_STATS = { played: 0, cpu: { 1: [0, 0], 2: [0, 0], 3: [0, 0] }, pvp: 0, practiceShots: 0, shots: 0, potted: 0, fouls: 0, bestRun: 0, breakPots: 0 };
 
 let settings = { ...DEFAULT_SETTINGS, ...Store.load('settings', {}) };
@@ -121,7 +121,7 @@ function requestRender() { if (!rafId) rafId = requestAnimationFrame(frame); }
 const frameMs = [];
 function frame(ts) {
   rafId = 0;
-  if (portrait) { lastTs = 0; return; }
+  if (portrait) { lastTs = 0; setRoll(0); return; }
   const t0 = performance.now();
   const dt = lastTs ? Math.min(0.05, (ts - lastTs) / 1000) : 0.016;
   lastTs = ts;
@@ -305,18 +305,38 @@ function stepPlayback(dt) {
   pb.t = Math.min(pb.t + dt * pb.speed, s.done ? s.t + DROP + 0.05 : maxT);
   // sounds and live pot updates
   while (pb.ev < s.events.length && s.events[pb.ev].t <= pb.t) {
-    const e = s.events[pb.ev++];
-    if (e.k === 'b') play('click', Math.min(1, e.s / 3.5), 0.94 + (e.a % 5) * 0.03);
-    else if (e.k === 'c') play('cushion', Math.min(1, e.s / 3));
-    else if (e.k === 'p') { play('pocket', Math.min(1, 0.45 + e.s / 3)); pb.hudPots.add(e.a); updateHud(pb.hudPots); }
+    const e = s.events[pb.ev++], pan = panAt(e.a, e.t);
+    if (e.k === 'b') play('click', Math.min(1, e.s / 3.5), 0.94 + (e.a % 5) * 0.03, pan);
+    else if (e.k === 'c') play('cushion', Math.min(1, e.s / 3), 1, pan);
+    else if (e.k === 'p') { play('pocket', Math.min(1, 0.45 + e.s / 3), 1, pan); pb.hudPots.add(e.a); updateHud(pb.hudPots); }
   }
+  setRoll(rollLevel(pb.t));
   if (s.done && pb.t >= s.t + DROP) { finishShot(); return false; }
   return true;
+}
+
+// Stereo position of ball i at time t: table x 0..L maps to pan -0.6..0.6 (the table always runs left-right).
+function panAt(i, t) {
+  const s = pb.sim, f = Math.min(Math.floor(t / FRAME_DT), s.nFrames - 1);
+  return f < 0 ? 0 : (s.frames[(f * N + i) * 6] / L - 0.5) * 1.2;
+}
+// Rolling level from the summed speed (m/s) of balls still on the table.
+function rollLevel(t) {
+  const s = pb.sim, f = Math.floor(t / FRAME_DT), F = s.frames;
+  if (f + 1 >= s.nFrames) return 0;
+  let v = 0;
+  for (let i = 0; i < N; i++) {
+    if (!pb.startOn[i] || (s.pocketT[i] >= 0 && t >= s.pocketT[i])) continue;
+    const a = (f * N + i) * 6, b = a + N * 6;
+    v += Math.hypot(F[b] - F[a], F[b + 1] - F[a + 1]) / FRAME_DT;
+  }
+  return Math.min(1, v / 4);
 }
 
 function fastForward() { if (pb) pb.speed = pb.speed === 1 ? FEEL.fastForward : 1; }
 
 function finishShot() {
+  setRoll(0);
   const { state, report } = pb.judged;
   const prev = game;
   pb = null;
@@ -622,8 +642,8 @@ function hideOverlay(id) {
 function newGameFor(mode) {
   const seed = crypto.getRandomValues(new Uint32Array(1))[0] || 1;
   if (mode === 'practice') return Rules.newGame({ mode, players: [{ name: settings.solo || 'You' }, { name: '' }], seed });
-  if (mode === 'cpu') return Rules.newGame({ mode, players: [{ name: settings.solo || 'You' }, { name: 'Computer', cpu: settings.level }], seed });
-  return Rules.newGame({ mode, players: settings.names.map((n, i) => ({ name: n || `Player ${i + 1}` })), seed });
+  if (mode === 'cpu') return Rules.newGame({ mode, players: [{ name: settings.solo || 'You' }, { name: 'Computer', cpu: settings.level }], seed, callEight: settings.eight !== 'any' });
+  return Rules.newGame({ mode, players: settings.names.map((n, i) => ({ name: n || `Player ${i + 1}` })), seed, callEight: settings.eight !== 'any' });
 }
 function startGame(mode, breaker = 0) {
   game = newGameFor(mode);
@@ -832,7 +852,7 @@ function wire() {
       const cpuMode = where === 'setup-cpu';
       $('setup-cpu').hidden = !cpuMode; $('setup-pvp').hidden = cpuMode;
       $('setup').dataset.mode = cpuMode ? 'cpu' : 'pvp';
-      segSet('setup-cpu', settings.level);
+      segSet('setup-cpu', settings.level); segSet('call-seg', settings.eight);
       for (const b of $('setup-cpu').querySelectorAll('[data-level]')) b.setAttribute('aria-checked', String(+b.dataset.level === settings.level));
       $('name-solo').value = settings.solo; $('name-0').value = settings.names[0]; $('name-1').value = settings.names[1];
       openSheet('setup');
@@ -877,6 +897,7 @@ function wire() {
   bind('s-sound', 'sound'); bind('s-haptics', 'haptics'); bind('s-instant', 'instant');
   bind('s-left', 'left', relayout); bind('s-assist', 'assist', () => { relayout(); updateControls(); updateAssist(); });
   const segBind = (id, key, after) => $(id).querySelectorAll('button').forEach((b) => b.addEventListener('click', () => { settings[key] = b.dataset.v; segSet(id, b.dataset.v); saveSettings(); applySettings(); after?.(); requestRender(); }));
+  segBind('call-seg', 'eight');
   segBind('s-guide', 'guide'); segBind('s-motion', 'motion');
   segBind('d-vsource', 'vsource', () => { relayout(); fillDiag(); });
   // hidden diagnostics: long-press the version label
@@ -927,6 +948,7 @@ function boot() {
   }
   renderer.onRestore = requestRender;
   applySettings();
+  loadSounds();
   initRecorder(() => ({ viewport: meas, layout: lay && { table: lay.table, ballPx: lay.ballPx }, version: VERSION }));
   Store.requestPersistence();
   titleBalls = Rules.newGame({ mode: 'practice', players: [{ name: '' }], seed: 20240607 }).balls;

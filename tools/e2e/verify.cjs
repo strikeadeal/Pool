@@ -218,13 +218,16 @@ async function playToEnd(page, maxTurns = 300) {
       await page.goto(url); await page.waitForTimeout(500);
       await page.click('[data-go="setup-pvp"]');
       await page.fill('#name-0', 'Alex'); await page.fill('#name-1', 'Sam');
+      await page.click('#call-seg [data-v="any"]');
       await page.click('#setup-start');
+      const sounds = await page.evaluate(async () => (await import('./js/feedback.js')).soundsReady);
+      ok('all 13 recorded sounds load and decode in the browser', sounds === 13, `${sounds} decoded`);
       const t0 = Date.now();
       const done = await playToEnd(page);
-      const over = await B(page, () => ({ phase: window.__baize.game?.phase, reason: window.__baize.game?.winReason, shots: window.__baize.game?.shotNo }));
+      const over = await B(page, () => ({ phase: window.__baize.game?.phase, reason: window.__baize.game?.winReason, shots: window.__baize.game?.shotNo, call: window.__baize.game?.callEight }));
       await page.waitForSelector('#over:not([hidden])', { timeout: 5000 }).catch(() => {});
       const shown = await page.isVisible('#over');
-      ok('complete pass-and-play game reaches a winner with the game-over screen', done && over.phase === 'over' && shown, `${over.shots} shots, ${((Date.now() - t0) / 1000).toFixed(0)} s: ${over.reason}`);
+      ok('complete pass-and-play game ("Any pocket" for the 8) reaches a winner with the game-over screen', done && over.phase === 'over' && shown && over.call === false, `${over.shots} shots, ${((Date.now() - t0) / 1000).toFixed(0)} s: ${over.reason}`);
       await context.close();
     }
 

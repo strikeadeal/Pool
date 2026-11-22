@@ -18,9 +18,11 @@ export function remaining(balls, g) {
 export const nextSeed = (s) => (Math.imul(s ^ 0x9e3779b9, 0x85ebca6b) >>> 0) || 1;
 
 // mode: 'pvp' | 'cpu' | 'practice'. players: [{name, cpu: 0|1|2|3}] (cpu level 0 = human)
-export function newGame({ mode, players, seed, breaker = 0 }) {
+// callEight: the 8 must go in a called pocket (WPA). false = any pocket wins.
+export function newGame({ mode, players, seed, breaker = 0, callEight = true }) {
   const s = {
     mode,
+    callEight,
     players: players.map((p) => ({ name: p.name, cpu: p.cpu || 0 })),
     seed,
     rackNo: 1,
@@ -70,7 +72,8 @@ export function legalTargets(s, p = s.turn) {
   return out;
 }
 
-export const needsCall = (s) => s.mode !== 'practice' && s.phase === 'play' && onEight(s);
+// Saved games from before the option have no callEight field: they keep calling.
+export const needsCall = (s) => s.mode !== 'practice' && s.callEight !== false && s.phase === 'play' && onEight(s);
 
 // Put the cue ball somewhere legal for ball in hand (used after a scratch).
 export function defaultCuePlacement(s) {
@@ -218,14 +221,14 @@ export function judge(prev, outcome, balls) {
     let reason = '';
     if (fouled) reason = `potted the 8 on a foul (${report.foulText})`;
     else if (!eight) reason = `potted the 8 before clearing ${names[me] === 'You' ? 'your' : 'their'} group`;
-    else if (prev.called !== pocket) reason = prev.called == null ? 'potted the 8 without calling a pocket' : `potted the 8 in the ${POCKET_NAMES[pocket]} pocket, not the called ${POCKET_NAMES[prev.called]}`;
+    else if (prev.callEight !== false && prev.called !== pocket) reason = prev.called == null ? 'potted the 8 without calling a pocket' : `potted the 8 in the ${POCKET_NAMES[pocket]} pocket, not the called ${POCKET_NAMES[prev.called]}`;
     s.phase = 'over';
     s.ballInHand = null;
     if (reason) {
       s.winner = opp; s.winReason = `${names[me]} ${reason}.`;
       report.title = says(names[opp], 'wins', 'win'); report.detail = s.winReason;
     } else {
-      s.winner = me; s.winReason = `${names[me]} potted the 8 in the called pocket.`;
+      s.winner = me; s.winReason = `${names[me]} potted the 8${prev.callEight === false ? '' : ' in the called pocket'}.`;
       s.potted[me] += objPotted.length;
       report.title = says(names[me], 'wins', 'win'); report.detail = s.winReason;
     }
@@ -330,5 +333,6 @@ export function describe(s) {
     parts.push(`${says(n[p], 'has', 'have')} ${groupName(g)}: ${left.length ? left.join(', ') + ' left' : 'all potted, on the 8'}.`);
   }
   if (!s.groups[0] && s.phase !== 'break') parts.push('The table is open.');
+  if (s.callEight === false) parts.push('8-ball: any pocket.');
   return parts.join(' ');
 }

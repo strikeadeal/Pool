@@ -51,7 +51,7 @@
 | **Shoot** | Pull the power bar down and let go. Slide back to the top to cancel. |
 | **Spin** | Tap the cue ball in the top-right corner and drag the red dot: above centre for follow, below for draw, sides for english. Spin resets after every shot. |
 | **Ball in hand** | Drag the cue ball (it has a ring around it) to place it. |
-| **Calling the 8** | The game suggests a pocket (gold ring); tap another pocket to change it. |
+| **Calling the 8** | The game suggests a pocket (gold ring); tap another pocket to change it. Choose **8-ball pocket: Any pocket** when you set up a game to play without calling. |
 | **Watching** | Tap during a shot to fast-forward. |
 
 Rules (WPA 8-ball, details and deviations in [DECISIONS.md](DECISIONS.md#2-rules)):
@@ -60,7 +60,7 @@ Rules (WPA 8-ball, details and deviations in [DECISIONS.md](DECISIONS.md#2-rules
 - **Groups:** the table is open after the break. The first ball you pot legally makes that group (solids or stripes) yours.
 - **A legal shot:** hit your own group first, then pot a ball or make any ball touch a cushion. Potting one of yours keeps you at the table.
 - **Fouls:** a foul gives your opponent ball in hand anywhere.
-- **The 8:** clear your group, then pot the 8 in the called pocket. Potting it early, in the wrong pocket, or on a foul loses.
+- **The 8:** clear your group, then pot the 8 in the called pocket. Potting it early, in the wrong pocket, or on a foul loses. With **Any pocket** chosen at setup, any pocket wins; early or on a foul still loses.
 
 The title screen also has **How to play** and **Stats** (games and wins against each computer level, pot rate, best run and fouls, kept on the phone).
 
@@ -87,7 +87,7 @@ One-time settings, already done:
 Needs Node 20 or later. There are no dependencies to install.
 
 ```sh
-npm test          # 40 tests: physics, rules, storage, complete computer-vs-computer games
+npm test          # 43 tests: physics, rules, storage, complete computer-vs-computer games
 npm start         # builds to dist/ and serves it at http://localhost:8080/pool/ (like GitHub Pages)
 ```
 
@@ -96,7 +96,7 @@ npm start         # builds to dist/ and serves it at http://localhost:8080/pool/
 - **Browser tests** (optional; needs Playwright, `npm i -D playwright && npx playwright install chromium webkit`):
 
   ```sh
-  node tools/e2e/verify.cjs chromium --shots   # 24 checks; screenshots into docs/screenshots
+  node tools/e2e/verify.cjs chromium --shots   # 25 checks; screenshots into docs/screenshots
   node tools/e2e/verify.cjs webkit             # the same checks in WebKit
   ```
 
@@ -115,6 +115,8 @@ npm start         # builds to dist/ and serves it at http://localhost:8080/pool/
 | `src/js/layout.js` | Viewport measurement (with the iOS workarounds) and where every control goes |
 | `src/js/input.js` | Touch controls: aim, power, roller, spin, ball in hand |
 | `src/js/feel.js` | **Every control feel value, in one commented file** |
+| `src/js/feedback.js` | Sound (recorded hits, rolling hum, synthesised fallback) and haptics |
+| `src/sounds/` | 13 short WAV clips cut from CC0 recordings by `tools/sounds.mjs` (see Sound credits) |
 | `src/js/main.js` | Screens, turns, playback, saving, updates |
 | `tools/build.mjs` | Copies `src/` to `dist/` and stamps a version derived from the content into the app and the service worker's precache list (SHA-256, with SRI) |
 | `.github/workflows/deploy.yml` | Test → build → deploy to Pages on push to `main`; tests only on pull requests |
@@ -129,6 +131,20 @@ npm start         # builds to dist/ and serves it at http://localhost:8080/pool/
 - **Haptics** use an iOS 18 trick (a hidden switch control), which a future iOS may remove. Sound and play are unaffected if it goes.
 - **Separate saves** for Safari tabs and the installed app (iOS rule).
 - **Real-phone checks:** the automated checks run in desktop Chromium. [VERIFICATION.md](VERIFICATION.md) §3–4 lists what only an iPhone can confirm (touch feel, sound, haptics, offline, updates).
+
+## Sound credits
+
+The ball, cushion, cue and pocket sounds are cut from these Freesound recordings, all released under [Creative Commons 0](https://creativecommons.org/publicdomain/zero/1.0/) (no attribution required; listed so the sources can be traced). `tools/sounds.mjs` records the exact cut points and rebuilds the clips.
+
+| Sounds | Recording | By |
+|---|---|---|
+| Ball clicks 1–2 | [Billiard Ball percussive hits](https://freesound.org/s/245397/) | Cymeon |
+| Ball clicks 3–4 | [Pool Ball Clatter](https://freesound.org/s/763602/) | ChloePieterse |
+| Cue strikes, cushion thuds | [S02-22 Billiards cue stick hits ball](https://freesound.org/s/675330/) | craigsmith |
+| Pocket drops 1–2 | [Pool Ball Sinking](https://freesound.org/s/763601/) | ChloePieterse |
+| Pocket drop 3 | [B_1 pool ball falling](https://freesound.org/s/441857/) | Yarmonics |
+
+The rolling hum and the menu tick are synthesised.
 
 ## Documents
 

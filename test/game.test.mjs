@@ -6,8 +6,8 @@ import * as Rl from '../src/js/rules.js';
 import * as P from '../src/js/physics.js';
 import { decideSync, chooseDecision } from '../src/js/ai.js';
 
-export function playGame(seed, levels, maxShots = 400) {
-  let s = Rl.newGame({ mode: 'cpu', players: [{ name: 'A', cpu: levels[0] }, { name: 'B', cpu: levels[1] }], seed });
+export function playGame(seed, levels, maxShots = 400, callEight = true) {
+  let s = Rl.newGame({ mode: 'cpu', players: [{ name: 'A', cpu: levels[0] }, { name: 'B', cpu: levels[1] }], seed, callEight });
   const log = [];
   for (let n = 0; n < maxShots && s.phase !== 'over'; n++) {
     if (s.phase === 'decision') { s = Rl.decide(s, chooseDecision(s)); continue; }
@@ -40,6 +40,12 @@ test('complete computer-vs-computer games finish with a winner and consistent st
     results.push(log.length);
   }
   assert.ok(results.every((n) => n > 3));
+});
+
+test('a complete game with 8-ball calling off finishes with a winner', () => {
+  const { s } = playGame(7, [2, 2], 400, false);
+  assert.equal(s.phase, 'over'); assert.ok(s.winner === 0 || s.winner === 1);
+  assert.equal(s.callEight, false);
 });
 
 test('skill matters: Hard beats Easy far more often than not', () => {

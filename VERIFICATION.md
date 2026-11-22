@@ -7,16 +7,16 @@
 
 Treat every iOS-specific behaviour (standalone viewport, safe areas, haptics, audio session, ProMotion, storage durability) as **untested until you try it on your phone**.
 
-## 1. Automated tests (Node 22, `npm test`): 40 pass
+## 1. Automated tests (Node 22, `npm test`): 43 pass
 
 | Suite | What it proves |
 |---|---|
 | `physics.test.mjs` (15) | **Determinism:** bit-identical results whether the sim runs in one go or in chunks, plus a golden checksum of a full break. **Collisions and spin:** head-on stun transfer; cut shots following the 90° rule; **the guide line matching the simulated object-ball direction to < 0.005° over 40 cuts**; draw, follow and stun behaviour. **Cushions:** rebound angle and restitution; running versus reverse english; a rolling ball's rebound speed. **Pockets:** all 6 pockets at 3 speeds; jaw rejection; a rail roll past the side pocket. **Robustness:** 300 random shots ending with no ball off the cloth and no overlaps; every full-power break legal over 25 racks. |
-| `rules.test.mjs` (18) | **Break:** legal and illegal breaks with the three options; scratch on the break; 8 on the break, with and without a scratch. **Open table:** group assignment, including the first ball to drop deciding; hitting the 8 first on an open table. **Fouls:** wrong ball first, no cushion, no hit, scratch; balls potted on a foul stay down. **Turns and the 8:** turn passing; winning on the 8; losing four ways (wrong pocket, uncalled, on a foul, early); a scratch on the 8 being only a foul. **Also:** ball-in-hand limits, practice mode, the VoiceOver table summary. |
+| `rules.test.mjs` (20) | **Break:** legal and illegal breaks with the three options; scratch on the break; 8 on the break, with and without a scratch. **Open table:** group assignment, including the first ball to drop deciding; hitting the 8 first on an open table. **Fouls:** wrong ball first, no cushion, no hit, scratch; balls potted on a foul stay down. **Turns and the 8:** turn passing; winning on the 8; losing four ways (wrong pocket, uncalled, on a foul, early); a scratch on the 8 being only a foul. **Calling off:** the 8 in any pocket wins, early or on a foul still loses; calling defaults on, and a saved game without the field still calls. **Also:** ball-in-hand limits, practice mode, the VoiceOver table summary. |
 | `storage.test.mjs` (5) | Versioned keys and revisions. A stale tab can't overwrite newer data. Older code never writes over a newer schema. Read-modify-write stats don't lose records across tabs. Corrupt data falls back. |
-| `game.test.mjs` (2) | Six complete computer-vs-computer games through the real physics and rules, with state invariants checked every shot. **Hard beats Easy in at least 70% of 10 games.** |
+| `game.test.mjs` (3) | Six complete computer-vs-computer games, plus one with calling off, through the real physics and rules, with state invariants checked every shot. **Hard beats Easy in at least 70% of 10 games.** |
 
-## 2. Browser checks (Chromium 153 headless, SwiftShader WebGL, Playwright 1.63): 24 pass
+## 2. Browser checks (Chromium 153 headless, SwiftShader WebGL, Playwright 1.63): 25 pass
 
 Command: `node tools/e2e/verify.cjs chromium --shots`. It runs against the **production build served under `/pool/`** by a server that mimics GitHub Pages, including its 10-minute cache header.
 
@@ -28,7 +28,8 @@ Command: `node tools/e2e/verify.cjs chromium --shots`. It runs against the **pro
 | **Portrait:** the rotate screen covers the game, no frames run (a shot in flight stops dead), and the shot finishes after turning back | pass |
 | Aim drag gives the same result with 8, 16 or 64 touch events for the same path (the 60 Hz versus 120 Hz question) | 0.000° spread |
 | Fine roller gives the same result at any event rate | exact |
-| A complete pass-and-play game through the UI, ending on the game-over screen | pass |
+| All 13 recorded sounds load and decode in the browser | 13/13 |
+| A complete pass-and-play game through the UI with **Any pocket** chosen at setup, ending on the game-over screen | pass |
 | A soft break is illegal, the incoming player gets the three WPA options, and re-racking hands the break over | pass |
 | A complete game against the Hard computer | pass |
 | Close and reopen mid-game resumes the same table, turn and shot number | pass |
@@ -64,7 +65,7 @@ Command: `node tools/e2e/verify.cjs chromium --shots`. It runs against the **pro
 - **Touch feel** with real fingers: aim gain, roller gain, power travel and curve.
 - **120 Hz ProMotion:** the maths is rate-independent and tested, but Safari's actual frame rate isn't.
 - Performance on an SE-class GPU during the break.
-- **Sound:** the synthesised sounds, the ringer switch (`audioSession = 'ambient'`), and audio resuming after a call.
+- **Sound:** whether the recordings sound like real pool. I chose and cut them without being able to listen (DECISIONS.md §6); judge a break, a soft cut, a cushion bank, a pot and the rolling hum by ear. Also the ringer switch (`audioSession = 'ambient'`), and audio resuming after a call.
 - **Haptics:** the iOS 18 switch trick, possibly removed in iOS 26.5.
 - WebGL context loss after long backgrounding.
 - Whether iOS flushes `localStorage` before a force-quit right after a shot. If it doesn't, you'd lose that last shot and replay it, but the game won't be corrupted.
@@ -77,7 +78,7 @@ Command: `node tools/e2e/verify.cjs chromium --shots`. It runs against the **pro
 1. **Install and look.** Install from Safari and launch from the icon, holding the phone sideways. Check all four edges, turn the phone the other way round, then upright (you should get the rotate screen) and back.
    - If anything is cut off or there's a band, go to Settings, long-press the version label for 2 s, and screenshot the Diagnostics panel.
    - Then try "Viewport source": 100vh, innerHeight, Fixed. Tell me which one looks right.
-2. **Break hard and watch.** Play a break against the computer. Watch for stutter and listen for the sounds (ringer switch on).
+2. **Break hard and watch.** Play a break against the computer. Watch for stutter and listen for the sounds (ringer switch on). Then start a game with **8-ball pocket: Any pocket** and check no pocket marker appears on the 8.
 3. **Aim one long, thin cut.** Use drag, then the roller, then shoot at about 40%. If the controls feel off, see DECISIONS.md §10, or switch on "Record touches" in Diagnostics, play five shots, and send me the JSON from Share….
 4. **Interrupt it.** Shoot, then immediately lock the phone. Unlock, and the shot should finish or show its result. Then shoot and swipe the app away. Reopen it, and the result should be there.
 5. **Go offline.** Turn on Airplane Mode and launch from the icon.

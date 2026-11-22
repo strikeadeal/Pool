@@ -43,6 +43,7 @@ The base is the **WPA World Standardised Rules for 8-ball** (2025 edition, verif
 | Foul penalty | Opponent gets ball in hand anywhere. Object balls potted on a foul stay down. | Same | |
 | Turn continues | Legal shot that pots at least one of your own balls (any non-8 on an open table) | Same, by called ball | |
 | Loss | 8 potted before your group is clear (including on the same shot as your last ball), 8 in an uncalled pocket, or 8 potted on a foul | Same | |
+| **Calling optional** | Setup offers **8-ball pocket: Call it / Any pocket**, for both computer and pass-and-play games. Default is Call it; the last choice is remembered. With Any pocket, the 8 in any pocket wins, but early or on a foul still loses. | Always called | Players asked for it; many casual tables don't call the 8. Games saved before the option keep calling. The computer needs no change: it judges candidate shots through the same rules code. |
 | Scratch while on the 8 (8 not potted) | Foul only, not a loss | Same | |
 | Three fouls | Not a rule | Not in WPA 8-ball | |
 | Jump/massé, push-out, re-spotted balls, touching balls | Not applicable. The cue is always level, so no jumps. | | Scope |
@@ -135,8 +136,14 @@ The base is the **WPA World Standardised Rules for 8-ball** (2025 edition, verif
   - **Table:** the background and table (wood grain, cloth noise, lamp falloff, pockets, diamonds) are painted once per resize with Canvas 2D into a texture.
   - **Balls:** each ball is a quad. The fragment shader computes the sphere normal, rotates it by the ball's orientation and shades the stripe band, number disc and glyph analytically, with two lamp highlights and a cloth-coloured rim reflection. There's no texture stretching, and numbers stay crisp at every size.
   - **Extras:** shadows are soft sprites. Potted balls sink and fade.
-- **Sound:** synthesised at start-up with Web Audio. Nothing is sampled from anywhere, so it's original and works offline.
-  - The sounds are a ball click, cushion thump, pocket drop, cue strike and UI tick, scaled by impact speed and voice-limited during the break.
+- **Sound:** recorded, not synthesised. Players said the original synthesised sounds didn't sound like pool.
+  - **Source:** 13 clips (4 ball clicks, 3 cushion thuds, 3 cue strikes, 3 pocket drops) cut from five CC0 Freesound recordings. CC0 means no licence terms to carry. Sources and cut points are in `tools/sounds.mjs` and the README's Sound credits.
+  - **Chosen without listening.** I can't hear audio, so I chose by description, ratings and downloads, then checked each cut with ffmpeg: onset at 1 ms, spectral centroid (clicks and cues 1.3–2.6 kHz, cushions 0.3–0.5 kHz, pockets ~0.5 kHz with a rattle tail) and spectrum images. The cushion clips are low, isolated thuds from a cue-and-ball session; that they are cushion hits is my inference from their spectrum and timing, not a label in the recording.
+  - **WAV, mono 16-bit, 32 kHz** (216 KB in all). MP3 and AAC add encoder padding of about 25 ms before each hit, which would put the click out of step with the collision.
+  - **Variation:** each hit picks a random clip (never the same one twice running) with ±4% pitch, so a break doesn't sound like a machine gun. Volume and a low-pass filter both follow impact speed: soft contacts are quieter and duller, as real ones are. Each hit is panned by the ball's position across the table (up to ±0.6).
+  - **Rolling:** a quiet low-passed noise loop whose level and pitch follow the balls' total speed. It's synthesised: I didn't find a clean CC0 recording of a ball rolling on cloth.
+  - **Fallback:** if a clip fails to load or decode, that sound falls back to the old synthesised version, so sound never just disappears. The clips are precached like every other file, so they work offline.
+  - Voice-limited to 16 during the break, with a 12 ms de-duplication window.
   - Uses `navigator.audioSession.type = 'ambient'` where it exists, so the ringer switch mutes the game and the player's music keeps playing.
 - **Haptics:** iOS Safari has no Vibration API. On iOS 18+ a hidden `<input type="checkbox" switch>` produces a system haptic when it toggles, so it's used for the strike, roller ticks and 100% power.
   - This only works from a user gesture, so collisions can't buzz. It's best-effort and has an off switch. One third-party source says Apple closed it in iOS 26.5. I haven't verified that, and if true, iPhones on 26.5 or later get no haptics.

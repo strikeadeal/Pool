@@ -252,3 +252,12 @@ pre#diag-vp { font: 11px/1.45 ui-monospace, Menlo, monospace; color: #cfe; backg
 
 /* Reduced motion: no transitions or looping animation (ball motion is the game itself). */
 .reduce-motion *, .reduce-motion *::before, .reduce-motion *::after { transition: none !important; animation: none !important; }
+/* Setup: names side by side so the 8-ball option shows without scrolling on small phones. */
+#setup-pvp:not([hidden]) { display: grid; grid-template-columns: 1fr 1fr; column-gap: 12px; }
+#setup-pvp .fine { grid-column: 1 / -1; }
+#setup .field { min-width: 0; }
+#setup .field input { width: 100%; min-width: 0; box-sizing: border-box; }
+#setup-cpu:not([hidden]) { display: grid; grid-template-columns: 1fr 1fr; column-gap: 12px; align-items: end; }
+#setup-cpu .label { grid-area: 1 / 1; }
+#setup-cpu .seg { grid-area: 2 / 1; }
+#setup-cpu .field { grid-area: 1 / 2 / 3; margin: 0; }
