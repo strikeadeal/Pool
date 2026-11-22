@@ -161,14 +161,14 @@ export function setRoll(level) {
   if (level > 0.02 && enabledSound && ctx.state === 'running' && !roll) {
     const src = ctx.createBufferSource(), g = ctx.createGain(), lp = ctx.createBiquadFilter();
     src.buffer = buffers.roll[0]; src.loop = true;
-    lp.type = 'lowpass'; lp.frequency.value = 1400;   // the recording is on wood; cloth is duller
+    lp.type = 'lowpass'; lp.frequency.value = 1000;   // the recording is on wood; cloth is duller
     g.gain.value = 0;
     src.connect(lp); lp.connect(g); g.connect(master); src.start(now);
     roll = { src, g };
   }
   if (!roll) return;
   if (level > 0.02 && enabledSound) {
-    roll.g.gain.setTargetAtTime(0.28 * Math.min(1, level), now, 0.06);
+    roll.g.gain.setTargetAtTime(0.14 * Math.min(1, level), now, 0.06);
     roll.src.playbackRate.setTargetAtTime(0.7 + 0.6 * Math.min(1, level), now, 0.06);
   } else {
     roll.g.gain.setTargetAtTime(0, now, 0.05);

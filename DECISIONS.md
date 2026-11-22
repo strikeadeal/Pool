@@ -144,7 +144,7 @@ The base is the **WPA World Standardised Rules for 8-ball** (2025 edition, verif
   - **Rolling:** a recorded 1.5 s loop whose level and pitch follow the balls' total speed. The first version used synthesised noise, which players said sounded wrong.
     - Source: a hard bowls ball rolling on a wooden table (Freesound 708103). Bowls balls are hard composite like pool balls. I found no clean CC0 recording of a ball on cloth: the one snooker recording with under-table mics also carries commentary, crowd and mains hum.
     - The loop is the steadiest 1.8 s (level within ±2 dB), with the last 0.3 s crossfaded into the start. The seam's sample step is a fifth of the largest step inside the clip, so it shouldn't click.
-    - Played through a 1.4 kHz low-pass, because wood is brighter than cloth.
+    - Played through a 1 kHz low-pass, because wood is brighter than cloth. Turned down 6 dB (peak gain 0.14) after phone feedback that it was too loud.
   - **Fallback:** if a clip fails to load or decode, that sound falls back to the old synthesised version, so sound never just disappears. The clips are precached like every other file, so they work offline.
   - Voice-limited to 16 during the break, with a 12 ms de-duplication window.
   - Uses `navigator.audioSession.type = 'ambient'` where it exists, so the ringer switch mutes the game and the player's music keeps playing.
