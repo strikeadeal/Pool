@@ -28,7 +28,7 @@ Command: `node tools/e2e/verify.cjs chromium --shots`. It runs against the **pro
 | **Portrait:** the rotate screen covers the game, no frames run (a shot in flight stops dead), and the shot finishes after turning back | pass |
 | Aim drag gives the same result with 8, 16 or 64 touch events for the same path (the 60 Hz versus 120 Hz question) | 0.000° spread |
 | Fine roller gives the same result at any event rate | exact |
-| All 13 recorded sounds load and decode in the browser | 13/13 |
+| All 14 recorded sounds load and decode in the browser | 14/14 |
 | A complete pass-and-play game through the UI with **Any pocket** chosen at setup, ending on the game-over screen | pass |
 | A soft break is illegal, the incoming player gets the three WPA options, and re-racking hands the break over | pass |
 | A complete game against the Hard computer | pass |
@@ -65,7 +65,7 @@ Command: `node tools/e2e/verify.cjs chromium --shots`. It runs against the **pro
 - **Touch feel** with real fingers: aim gain, roller gain, power travel and curve.
 - **120 Hz ProMotion:** the maths is rate-independent and tested, but Safari's actual frame rate isn't.
 - Performance on an SE-class GPU during the break.
-- **Sound:** whether the recordings sound like real pool. I chose and cut them without being able to listen (DECISIONS.md §6); judge a break, a soft cut, a cushion bank, a pot and the rolling hum by ear. Also the ringer switch (`audioSession = 'ambient'`), and audio resuming after a call.
+- **Sound:** whether the recordings sound like real pool. I chose and cut them without being able to listen (DECISIONS.md §6); judge a break, a soft cut, a cushion bank, a pot and the rolling sound by ear. The rolling loop was replaced with a recording after you said the first one sounded wrong. Also the ringer switch (`audioSession = 'ambient'`), and audio resuming after a call.
 - **Haptics:** the iOS 18 switch trick, possibly removed in iOS 26.5.
 - WebGL context loss after long backgrounding.
 - Whether iOS flushes `localStorage` before a force-quit right after a shot. If it doesn't, you'd lose that last shot and replay it, but the game won't be corrupted.

@@ -115,8 +115,8 @@ npm start         # builds to dist/ and serves it at http://localhost:8080/pool/
 | `src/js/layout.js` | Viewport measurement (with the iOS workarounds) and where every control goes |
 | `src/js/input.js` | Touch controls: aim, power, roller, spin, ball in hand |
 | `src/js/feel.js` | **Every control feel value, in one commented file** |
-| `src/js/feedback.js` | Sound (recorded hits, rolling hum, synthesised fallback) and haptics |
-| `src/sounds/` | 13 short WAV clips cut from CC0 recordings by `tools/sounds.mjs` (see Sound credits) |
+| `src/js/feedback.js` | Sound (recorded hits and rolling, synthesised fallback) and haptics |
+| `src/sounds/` | 14 short WAV clips cut from CC0 recordings by `tools/sounds.mjs` (see Sound credits) |
 | `src/js/main.js` | Screens, turns, playback, saving, updates |
 | `tools/build.mjs` | Copies `src/` to `dist/` and stamps a version derived from the content into the app and the service worker's precache list (SHA-256, with SRI) |
 | `.github/workflows/deploy.yml` | Test → build → deploy to Pages on push to `main`; tests only on pull requests |
@@ -134,7 +134,7 @@ npm start         # builds to dist/ and serves it at http://localhost:8080/pool/
 
 ## Sound credits
 
-The ball, cushion, cue and pocket sounds are cut from these Freesound recordings, all released under [Creative Commons 0](https://creativecommons.org/publicdomain/zero/1.0/) (no attribution required; listed so the sources can be traced). `tools/sounds.mjs` records the exact cut points and rebuilds the clips.
+The ball, cushion, cue, pocket and rolling sounds are cut from these Freesound recordings, all released under [Creative Commons 0](https://creativecommons.org/publicdomain/zero/1.0/) (no attribution required; listed so the sources can be traced). `tools/sounds.mjs` records the exact cut points and rebuilds the clips.
 
 | Sounds | Recording | By |
 |---|---|---|
@@ -143,8 +143,9 @@ The ball, cushion, cue and pocket sounds are cut from these Freesound recordings
 | Cue strikes, cushion thuds | [S02-22 Billiards cue stick hits ball](https://freesound.org/s/675330/) | craigsmith |
 | Pocket drops 1–2 | [Pool Ball Sinking](https://freesound.org/s/763601/) | ChloePieterse |
 | Pocket drop 3 | [B_1 pool ball falling](https://freesound.org/s/441857/) | Yarmonics |
+| Rolling (1.5 s loop) | [Hard Bowls ball rolling on wooden table](https://freesound.org/s/708103/) | Rinaldobowles56 |
 
-The rolling hum and the menu tick are synthesised.
+The menu tick is synthesised.
 
 ## Documents
 

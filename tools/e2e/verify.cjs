@@ -221,7 +221,7 @@ async function playToEnd(page, maxTurns = 300) {
       await page.click('#call-seg [data-v="any"]');
       await page.click('#setup-start');
       const sounds = await page.evaluate(async () => (await import('./js/feedback.js')).soundsReady);
-      ok('all 13 recorded sounds load and decode in the browser', sounds === 13, `${sounds} decoded`);
+      ok('all 14 recorded sounds load and decode in the browser', sounds === 14, `${sounds} decoded`);
       const t0 = Date.now();
       const done = await playToEnd(page);
       const over = await B(page, () => ({ phase: window.__baize.game?.phase, reason: window.__baize.game?.winReason, shots: window.__baize.game?.shotNo, call: window.__baize.game?.callEight }));

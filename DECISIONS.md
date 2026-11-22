@@ -137,11 +137,14 @@ The base is the **WPA World Standardised Rules for 8-ball** (2025 edition, verif
   - **Balls:** each ball is a quad. The fragment shader computes the sphere normal, rotates it by the ball's orientation and shades the stripe band, number disc and glyph analytically, with two lamp highlights and a cloth-coloured rim reflection. There's no texture stretching, and numbers stay crisp at every size.
   - **Extras:** shadows are soft sprites. Potted balls sink and fade.
 - **Sound:** recorded, not synthesised. Players said the original synthesised sounds didn't sound like pool.
-  - **Source:** 13 clips (4 ball clicks, 3 cushion thuds, 3 cue strikes, 3 pocket drops) cut from five CC0 Freesound recordings. CC0 means no licence terms to carry. Sources and cut points are in `tools/sounds.mjs` and the README's Sound credits.
+  - **Source:** 14 clips (4 ball clicks, 3 cushion thuds, 3 cue strikes, 3 pocket drops, 1 rolling loop) cut from six CC0 Freesound recordings. CC0 means no licence terms to carry. Sources and cut points are in `tools/sounds.mjs` and the README's Sound credits.
   - **Chosen without listening.** I can't hear audio, so I chose by description, ratings and downloads, then checked each cut with ffmpeg: onset at 1 ms, spectral centroid (clicks and cues 1.3–2.6 kHz, cushions 0.3–0.5 kHz, pockets ~0.5 kHz with a rattle tail) and spectrum images. The cushion clips are low, isolated thuds from a cue-and-ball session; that they are cushion hits is my inference from their spectrum and timing, not a label in the recording.
-  - **WAV, mono 16-bit, 32 kHz** (216 KB in all). MP3 and AAC add encoder padding of about 25 ms before each hit, which would put the click out of step with the collision.
+  - **WAV, mono 16-bit, 32 kHz** (310 KB in all). MP3 and AAC add encoder padding of about 25 ms before each hit, which would put the click out of step with the collision.
   - **Variation:** each hit picks a random clip (never the same one twice running) with ±4% pitch, so a break doesn't sound like a machine gun. Volume and a low-pass filter both follow impact speed: soft contacts are quieter and duller, as real ones are. Each hit is panned by the ball's position across the table (up to ±0.6).
-  - **Rolling:** a quiet low-passed noise loop whose level and pitch follow the balls' total speed. It's synthesised: I didn't find a clean CC0 recording of a ball rolling on cloth.
+  - **Rolling:** a recorded 1.5 s loop whose level and pitch follow the balls' total speed. The first version used synthesised noise, which players said sounded wrong.
+    - Source: a hard bowls ball rolling on a wooden table (Freesound 708103). Bowls balls are hard composite like pool balls. I found no clean CC0 recording of a ball on cloth: the one snooker recording with under-table mics also carries commentary, crowd and mains hum.
+    - The loop is the steadiest 1.8 s (level within ±2 dB), with the last 0.3 s crossfaded into the start. The seam's sample step is a fifth of the largest step inside the clip, so it shouldn't click.
+    - Played through a 1.4 kHz low-pass, because wood is brighter than cloth.
   - **Fallback:** if a clip fails to load or decode, that sound falls back to the old synthesised version, so sound never just disappears. The clips are precached like every other file, so they work offline.
   - Voice-limited to 16 during the break, with a 12 ms de-duplication window.
   - Uses `navigator.audioSession.type = 'ambient'` where it exists, so the ringer switch mutes the game and the player's music keeps playing.

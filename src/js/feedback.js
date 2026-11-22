@@ -1,10 +1,10 @@
-// Sound and haptics. Hits are CC0 recordings (src/sounds, built by tools/sounds.mjs); the synthesised
-// buffers below are the fallback if a file fails to load or decode, plus the menu tick and the rolling hum.
+// Sound and haptics. Hits and the rolling loop are CC0 recordings (src/sounds, built by tools/sounds.mjs);
+// the synthesised buffers below are the fallback if a file fails to load or decode, plus the menu tick.
 let ctx = null, master = null, enabledSound = true, enabledHaptics = true;
 const buffers = {};             // name -> [AudioBuffer, ...] variants
 let voices = 0;
 const lastPlay = {}, lastVariant = {};
-const SAMPLES = { click: 4, cushion: 3, cue: 3, pocket: 3 };
+const SAMPLES = { click: 4, cushion: 3, cue: 3, pocket: 3, roll: 1 };
 const raw = {};                 // name -> Promise<ArrayBuffer|null>[]
 
 // Fetch the recordings early (no gesture needed); they're decoded once audio is unlocked.
@@ -113,7 +113,7 @@ function build() {
   synth.tick = buf(0.03, (d, sr) => {
     for (let i = 0; i < d.length; i++) { const t = i / sr; d[i] = Math.sin(TAU * 2600 * t) * Math.exp(-220 * t); }
   });
-  // Rolling on cloth: low-passed noise, looped. ponytail: synthesised, no clean CC0 roll recording found.
+  // Rolling fallback: low-passed noise, looped.
   synth.roll = buf(1.5, (d, sr, nz) => {
     let a = 0, b = 0;
     for (let i = 0; i < d.length; i++) { a += (nz() - a) * 0.06; b += (a - b) * 0.06; d[i] = b; }
@@ -153,16 +153,17 @@ export function play(name, gain = 1, rate = 1, pan = 0) {
   src.start(now);
 }
 
-// Rolling hum: level 0..1 from the balls' total speed; 0 fades it out and stops it.
+// Rolling sound: level 0..1 from the balls' total speed; 0 fades it out and stops it.
 let roll = null;
 export function setRoll(level) {
   if (!ctx) return;
   const now = ctx.currentTime;
   if (level > 0.02 && enabledSound && ctx.state === 'running' && !roll) {
-    const src = ctx.createBufferSource(), g = ctx.createGain();
+    const src = ctx.createBufferSource(), g = ctx.createGain(), lp = ctx.createBiquadFilter();
     src.buffer = buffers.roll[0]; src.loop = true;
+    lp.type = 'lowpass'; lp.frequency.value = 1400;   // the recording is on wood; cloth is duller
     g.gain.value = 0;
-    src.connect(g); g.connect(master); src.start(now);
+    src.connect(lp); lp.connect(g); g.connect(master); src.start(now);
     roll = { src, g };
   }
   if (!roll) return;

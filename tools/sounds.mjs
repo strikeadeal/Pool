@@ -15,7 +15,10 @@ export const SOURCES = {
   675330: { by: 'craigsmith', title: 'S02-22 Billiards cue stick hits ball', mp3: 'https://cdn.freesound.org/previews/675/675330_2524442-hq.mp3' },
   763601: { by: 'ChloePieterse', title: 'Pool Ball Sinking', mp3: 'https://cdn.freesound.org/previews/763/763601_15688677-hq.mp3' },
   441857: { by: 'Yarmonics', title: 'B_1 pool ball falling', mp3: 'https://cdn.freesound.org/previews/441/441857_9109395-hq.mp3' },
+  708103: { by: 'Rinaldobowles56', title: 'Hard Bowls ball rolling on wooden table', mp3: 'https://cdn.freesound.org/previews/708/708103_14713648-hq.mp3' },
 };
+// Rolling loop: [source id, start (s), length (s), crossfade (s)]. 1.1-2.9 s is the steady part (level within ±2 dB).
+const ROLL = [708103, 1.1, 1.8, 0.3];
 // [output name, source id, approximate hit time (s), clip length (s)]
 const CUTS = [
   ['click1', 245397, 10.147, 0.12], ['click2', 245397, 19.250, 0.12],
@@ -48,6 +51,21 @@ export function cut(x, at, len) {
   return y;
 }
 
+// Seamless loop: the last `xf` seconds are crossfaded (equal power) into the start.
+export function loop(x, at, len, xf) {
+  const s = Math.round(at * SR), n = Math.round(len * SR), f = Math.round(xf * SR), m = n - f;
+  const y = new Float32Array(m);
+  for (let i = 0; i < m; i++) y[i] = x[s + i];
+  for (let i = 0; i < f; i++) {
+    const k = i / f;
+    y[i] = x[s + i] * Math.sin(k * Math.PI / 2) + x[s + m + i] * Math.cos(k * Math.PI / 2);
+  }
+  let p = 0;
+  for (const v of y) p = Math.max(p, Math.abs(v));
+  for (let i = 0; i < m; i++) y[i] *= 0.891 / p;
+  return y;
+}
+
 export function wav(y) {
   const out = Buffer.alloc(44 + y.length * 2);
   out.write('RIFF', 0); out.writeUInt32LE(36 + y.length * 2, 4); out.write('WAVEfmt ', 8);
@@ -74,5 +92,9 @@ if (import.meta.url === `file://${process.argv[1]}`) {
     total += file.length;
     console.log(`${name}.wav  ${id} @ ${at}s  ${(file.length / 1024).toFixed(1)} KB`);
   }
+  const [rid, rat, rlen, rxf] = ROLL, rf = wav(loop(decoded[rid], rat, rlen, rxf));
+  writeFileSync(join(outDir, 'roll1.wav'), rf);
+  total += rf.length;
+  console.log(`roll1.wav  ${rid} @ ${rat}s loop  ${(rf.length / 1024).toFixed(1)} KB`);
   console.log(`total ${(total / 1024).toFixed(0)} KB`);
 }
