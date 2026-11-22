@@ -1,9 +1,9 @@
 // Baize: app controller. Screens, turn flow, shot playback, computer turns, persistence, updates.
-import { L, W, R, N, HEAD_X, Sim, simulate, predict, FRAME_DT, cloneBalls, canPlace, TABLE } from './physics.js';
+import { L, W, R, N, HEAD_X, Sim, simulate, predict, FRAME_DT } from './physics.js';
 import * as Rules from './rules.js';
 import { think, chooseDecision, potCandidates, LEVELS } from './ai.js';
 import { FEEL } from './feel.js';
-import { measure, computeLayout, toScreen, dirToScreen } from './layout.js';
+import { measure, computeLayout, toScreen } from './layout.js';
 import { Renderer } from './render.js';
 import { holeCentre } from './textures.js';
 import { attachInput } from './input.js';
@@ -92,8 +92,9 @@ function relayout() {
   place($('power'), lay.power);
   place($('roller'), lay.roller);
   place($('spin-btn'), lay.spin);
-  $('roller').classList.toggle('vertical', !!lay.roller.vertical);
+  $('roller').classList.toggle('vertical', !!lay.roller?.vertical);
   place($('assist'), lay.assist);
+  $('assist').classList.toggle('narrow', !!lay.assist?.narrow);
   const b = $('banner'); b.style.top = (lay.table.y + lay.table.h * (lay.portrait ? 0.08 : 0.1)) + 'px';
   const th = $('thinking'); th.style.left = (lay.cx - 30) + 'px'; th.style.top = (lay.table.y + lay.table.h - 50) + 'px';
   app.classList.remove('booting');
@@ -389,6 +390,7 @@ function setAim(a, src) {
   aim = Math.atan2(Math.sin(a), Math.cos(a));
   if (src) interacted = true;
   if (Rules.needsCall(game) && !calledManual) game.called = autoCallPocket();
+  if (coachTarget === 'table') positionCoach();
   if (settings.tutorial === 0 && (src === 'drag' || src === 'tap')) { tutAim += 1; if (tutAim > 8 || src === 'tap') { settings.tutorial = 1; saveSettings(); showTutorial(); } }
   requestRender();
 }
@@ -486,8 +488,9 @@ function updateHud(extraPotted) {
     nm.append(pl.name);
     if (pl.cpu && lay.hud.w > 480) { const sm = document.createElement('small'); sm.textContent = ' · ' + LEVELS[pl.cpu].name; nm.append(sm); }
     plate.classList.toggle('active', game.turn === p && game.phase !== 'over');
+    if (game.turn === p && game.phase !== 'over') { const sr = document.createElement('span'); sr.className = 'sr-only'; sr.textContent = ', to shoot'; nm.append(sr); }
     const g = game.groups[p];
-    if (!g) { chips.innerHTML = game.phase === 'break' ? (game.turn === p ? 'To break' : '') : 'Open table'; chips.setAttribute('aria-label', chips.textContent); }
+    if (!g) { chips.innerHTML = game.phase === 'break' ? (game.turn === p ? 'To break' : '') : 'Open table'; chips.setAttribute('aria-label', chips.textContent || 'No group yet'); }
     else {
       const nums = g === 'S' ? [1, 2, 3, 4, 5, 6, 7] : [9, 10, 11, 12, 13, 14, 15];
       const left = nums.filter(isOn);
@@ -539,7 +542,7 @@ function showTutorial() {
   const step = settings.tutorial;
   if (step === 0) coach('Drag on the table to aim', 'table');
   else if (step === 1) coach(lay.portrait ? 'Pull down to shoot' : 'Pull down to shoot', 'power');
-  else if (step === 2) coach('Slide to fine-tune', 'roller');
+  else if (step === 2 && lay.roller) coach('Slide to fine-tune', 'roller');
   else hideCoach();
 }
 let coachTarget = null;
@@ -554,13 +557,24 @@ function positionCoach() {
   const c = $('coach');
   if (!coachTarget || !lay) return;
   c.classList.remove('below');
-  if (coachTarget === 'table') { c.style.left = lay.cx + 'px'; c.style.top = (lay.table.y + lay.table.h * 0.5) + 'px'; }
+  if (coachTarget === 'table') {
+    // Sit behind the cue ball, over the cue stick, so the hint never hides the aim line.
+    if (!game) return;
+    const [bx, by] = toScreen(lay, game.balls.x[0], game.balls.y[0]);
+    const [ax, ay] = toScreen(lay, game.balls.x[0] + Math.cos(aim), game.balls.y[0] + Math.sin(aim));
+    const ux = ax - bx, uy = ay - by, ul = Math.hypot(ux, uy) || 1;
+    const t = lay.table, cw = c.offsetWidth || 220;
+    const x = Math.min(t.x + t.w - cw / 2 - 4, Math.max(t.x + cw / 2 + 4, bx - (ux / ul) * 110));
+    const y = Math.min(t.y + t.h - 30, Math.max(t.y + 60, by - (uy / ul) * 110));
+    c.style.left = x + 'px'; c.style.top = y + 'px';
+  }
   else if (coachTarget === 'power') {
     c.style.left = Math.max(110, Math.min(lay.w - 110, lay.power.x + lay.power.w / 2 - (settings.left ? -90 : 90))) + 'px';
     c.style.top = (lay.power.y + 40) + 'px';
   } else if (coachTarget === 'roller') {
+    if (!lay.roller) return;
     c.style.left = (lay.roller.vertical ? lay.roller.x - 80 : lay.roller.x + lay.roller.w / 2) + 'px';
-    c.style.top = (lay.roller.y - 52) + 'px';
+    c.style.top = (lay.roller.vertical ? lay.roller.y + 40 : lay.roller.y - 52) + 'px';
   }
 }
 function hideCoach() { $('coach').classList.remove('show'); coachTarget = null; }
@@ -708,8 +722,20 @@ function updateAssist() { $('as-power').textContent = Math.round(assistPower * 1
 function openShotList() {
   const list = $('shots-list');
   list.innerHTML = '';
-  const cands = potCandidates(game).slice(0, 14);
-  if (!cands.length) list.innerHTML = '<li class="fine">No clear pots. Aim at a ball with the nudge buttons, or try a safety.</li>';
+  const add = (html, fn) => { const li = document.createElement('li'); const btn = document.createElement('button'); btn.innerHTML = html; btn.onclick = fn; li.append(btn); list.append(li); };
+  const b = game.balls;
+  const aimAt = (i, pw, say) => { setAim(Math.atan2(b.y[i] - b.y[0], b.x[i] - b.x[0]), 'assist'); assistPower = pw; updateAssist(); hideOverlay('shots'); announce(say); };
+  if (game.phase === 'break') {
+    add('Break <small>(full power into the rack)</small>', () => { setAim(defaultAim(), 'assist'); assistPower = 1; updateAssist(); hideOverlay('shots'); announce('Aimed at the rack. Power 100 percent.'); });
+  }
+  const cands = game.phase === 'break' ? [] : potCandidates(game).slice(0, 14);
+  if (game.phase !== 'break') {
+    // Always offer a plain hit on each legal ball (a safety), so there's never a dead end.
+    for (const i of Rules.legalTargets(game)) {
+      if (cands.some((c) => c.target === i)) continue;
+      add(`Hit the ${i === 8 ? '8' : esc(i)} ball <small>(no clear pot, safety)</small>`, () => aimAt(i, 0.3, `Aimed straight at the ${i}. Power 30 percent.`));
+    }
+  }
   for (const c of cands) {
     const li = document.createElement('li');
     const btn = document.createElement('button');
@@ -895,7 +921,7 @@ function boot() {
   applySettings();
   initRecorder(() => ({ viewport: meas, layout: lay && { portrait: lay.portrait, table: lay.table, ballPx: lay.ballPx }, version: VERSION }));
   Store.requestPersistence();
-  titleBalls = (() => { const b = Rules.newGame({ mode: 'practice', players: [{ name: '' }], seed: 20240607 }).balls; return b; })();
+  titleBalls = Rules.newGame({ mode: 'practice', players: [{ name: '' }], seed: 20240607 }).balls;
   game = recover(Store.load('game', null));
   if (game && game.phase === 'over') { game = null; Store.remove('game'); }
   wire();

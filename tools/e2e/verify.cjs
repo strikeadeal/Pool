@@ -112,6 +112,27 @@ async function playToEnd(page, maxTurns = 300) {
       }
     }
 
+    // ---------- 1b. assisted aiming and left-handed layouts ----------
+    for (const [orient, vw, vh, ins] of [['portrait', 393, 852, '59,0,34,0'], ['landscape', 852, 393, '0,59,21,59']]) {
+      for (const left of [false, true]) {
+        const { page, context, url } = await newPage(browser, { w: vw, h: vh, dpr: 1 });
+        await page.goto(`${URL}?insets=${ins}&standalone=1`);
+        await page.evaluate((left) => localStorage.setItem('baize.v1.settings', JSON.stringify({ schema: 1, rev: 1, data: { assist: true, left, tutorial: 3 } })), left);
+        await page.reload(); await page.waitForTimeout(300);
+        await page.click('[data-go="setup-pvp"]'); await page.click('#setup-start'); await page.waitForTimeout(300);
+        const r = await B(page, () => {
+          const box = (id) => { const e = document.getElementById(id); if (!e || e.offsetParent === null) return null; const b = e.getBoundingClientRect(); return { l: b.left, t: b.top, r: b.right, b: b.bottom }; };
+          const t = window.__baize.lay.table;
+          return { assist: box('assist'), power: box('power'), spin: box('spin-btn'), roller: box('roller'), table: { l: t.x, t: t.y, r: t.x + t.w, b: t.y + t.h }, ball: window.__baize.lay.ballPx };
+        });
+        const ov = (a, b) => a && b && a.l < b.r - 1 && b.l < a.r - 1 && a.t < b.b - 1 && b.t < a.b - 1;
+        const inside = (a, b) => a.l >= b.l - 0.5 && a.r <= b.r + 0.5 && a.t >= b.t - 0.5 && a.b <= b.b + 0.5;
+        const good = r.assist && !ov(r.assist, r.power) && !ov(r.assist, r.table) && !ov(r.power, r.table) && inside(r.spin, r.assist) && (!r.roller || (!ov(r.roller, r.assist) && !ov(r.roller, r.table)));
+        ok(`assisted aiming ${orient}${left ? ' left-handed' : ''}: panel, power and table don't overlap`, good, `ball ${r.ball.toFixed(1)}px`);
+        await context.close();
+      }
+    }
+
     // ---------- 2. aim and power are position-based: same path at 60 Hz vs 120 Hz event density ----------
     {
       const { page, context, url } = await newPage(browser);
@@ -156,6 +177,27 @@ async function playToEnd(page, maxTurns = 300) {
       const shown = await page.isVisible('#over');
       ok('complete pass-and-play game reaches a winner with the game-over screen', done && over.phase === 'over' && shown, `${over.shots} shots, ${((Date.now() - t0) / 1000).toFixed(0)} s: ${over.reason}`);
       if (SHOTS) await page.screenshot({ path: `${OUT}/standard-portrait-gameover.jpg`, quality: 82, type: 'jpeg' });
+      await context.close();
+    }
+
+    // ---------- 3b. illegal break: the incoming player gets the WPA choice ----------
+    {
+      const { page, context, url } = await newPage(browser);
+      await page.goto(url); await page.waitForTimeout(400);
+      await page.click('[data-go="setup-pvp"]'); await page.click('#setup-start'); await page.waitForTimeout(300);
+      await page.evaluate(() => {
+        const Bz = window.__baize, b = Bz.game.balls;
+        Bz.setAim(Math.atan2(0.495 - b.y[0], 1.485 - b.x[0]));
+        Bz.shoot(0.18);   // far too soft to send four balls to a cushion
+        if (Bz.pb) Bz.pb.speed = 4;
+      });
+      await waitIdle(page);
+      await page.waitForSelector('#decision:not([hidden])', { timeout: 5000 }).catch(() => {});
+      const opts = await page.$$eval('#dec-opts button', (b) => b.map((x) => x.textContent));
+      await page.click('#dec-opts button:nth-child(2)').catch(() => {});
+      await page.waitForTimeout(300);
+      const after = await B(page, () => ({ phase: window.__baize.game.phase, turn: window.__baize.game.turn, rack: window.__baize.game.rackNo }));
+      ok('illegal break offers the three WPA options; re-rack hands the break over', opts.length === 3 && after.phase === 'break' && after.turn === 1 && after.rack === 2, opts.join(' / '));
       await context.close();
     }
 

@@ -66,7 +66,7 @@ export function computeLayout(m, { leftHanded = false, assist = false } = {}) {
   const tableW = L + 2 * RAIL, tableH = W + 2 * RAIL;  // world size of table incl. rails
   let region;
   if (portrait) {
-    const hudH = 46, deckH = assist ? 168 : 64, powerW = 50;
+    const hudH = 46, deckH = assist ? 172 : 64, powerW = 50;
     lay.hud = { x: insets.l + pad, y: insets.t + 6, w: w - insets.l - insets.r - 2 * pad, h: hudH };
     const top = lay.hud.y + hudH + pad;
     const deckY = h - insets.b - pad - deckH;
@@ -75,31 +75,46 @@ export function computeLayout(m, { leftHanded = false, assist = false } = {}) {
     const deckX0 = leftHanded ? powerX + powerW + pad : insets.l + pad;
     const deckX1 = leftHanded ? w - insets.r - pad : powerX - pad;
     lay.deck = { x: deckX0, y: deckY, w: deckX1 - deckX0, h: deckH };
-    const spin = 56;
-    const sy = assist ? deckY + deckH - spin : deckY + (deckH - spin) / 2;
-    lay.spin = { x: leftHanded ? deckX1 - spin : deckX0, y: sy, w: spin, h: spin };
-    const rx0 = leftHanded ? deckX0 : deckX0 + spin + pad, rx1 = leftHanded ? deckX1 - spin - pad : deckX1;
-    lay.roller = { x: rx0, y: sy + 4, w: rx1 - rx0, h: spin - 8, vertical: false };
-    lay.assist = { x: deckX0, y: deckY, w: deckX1 - deckX0, h: deckH - spin - pad };
-    if (leftHanded) region = { x: powerX + powerW + pad, y: top, w: w - insets.r - pad - (powerX + powerW + pad), h: deckY - pad - top };
-    else region = { x: insets.l + pad, y: top, w: powerX - pad - (insets.l + pad), h: deckY - pad - top };
+    if (assist) {
+      // Assisted aiming: nudge buttons replace the roller; spin sits in the panel's first row.
+      lay.assist = { x: deckX0, y: deckY, w: deckX1 - deckX0, h: deckH };
+      lay.spin = { x: deckX1 - 10 - 44, y: deckY + 10, w: 44, h: 44 };
+      lay.roller = null;
+    } else {
+      const spin = 56;
+      const sy = deckY + (deckH - spin) / 2;
+      lay.spin = { x: leftHanded ? deckX1 - spin : deckX0, y: sy, w: spin, h: spin };
+      const rx0 = leftHanded ? deckX0 : deckX0 + spin + pad, rx1 = leftHanded ? deckX1 - spin - pad : deckX1;
+      lay.roller = { x: rx0, y: sy + 4, w: rx1 - rx0, h: spin - 8, vertical: false };
+      lay.assist = null;
+    }
+    region = leftHanded
+      ? { x: powerX + powerW + pad, y: top, w: w - insets.r - pad - (powerX + powerW + pad), h: deckY - pad - top }
+      : { x: insets.l + pad, y: top, w: powerX - pad - (insets.l + pad), h: deckY - pad - top };
   } else {
-    const hudH = 40, colW = 50 + pad + 44;
+    // Landscape: one control column on the dominant-hand side (power + roller, or power +
+    // the assisted panel), so it stays playable with one thumb.
+    const hudH = 40, panelW = assist ? 176 : 44, colW = 50 + pad + panelW;
     const l = Math.max(insets.l, 4), r = Math.max(insets.r, 4);
     lay.hud = { x: l + pad, y: Math.max(insets.t, 4) + 2, w: w - l - r - 2 * pad, h: hudH };
     const top = lay.hud.y + hudH + pad, bottom = h - Math.max(insets.b, 6) - pad;
     const colX = leftHanded ? l + pad : w - r - pad - colW;
     const powerX = leftHanded ? colX : colX + colW - 50;
-    const rollX = leftHanded ? colX + 50 + pad : colX;
+    const sideX = leftHanded ? colX + 50 + pad : colX;
     lay.power = { x: powerX, y: top, w: 50, h: bottom - top };
-    lay.spin = { x: rollX, y: top, w: 44, h: 44 };
-    lay.roller = { x: rollX, y: top + 44 + pad, w: 44, h: bottom - top - 44 - pad - (assist ? 0 : 0), vertical: true };
+    if (assist) {
+      lay.assist = { x: sideX, y: top, w: panelW, h: Math.min(bottom - top, 236), narrow: true };
+      lay.spin = { x: sideX + panelW - 54, y: top + 10, w: 44, h: 44 };
+      lay.roller = null;
+    } else {
+      lay.spin = { x: sideX, y: top, w: 44, h: 44 };
+      lay.roller = { x: sideX, y: top + 44 + pad, w: 44, h: bottom - top - 44 - pad, vertical: true };
+      lay.assist = null;
+    }
     lay.deck = null;
     const rx0 = leftHanded ? colX + colW + pad : l + pad;
     const rx1 = leftHanded ? w - r - pad : colX - pad;
     region = { x: rx0, y: top, w: rx1 - rx0, h: bottom - top };
-    lay.assist = { x: rx0 + region.w * 0.1, y: bottom - 150, w: region.w * 0.8, h: 150 };
-    if (assist) region = { ...region, h: region.h - 158 };
   }
   // Table orientation: long axis along the longer side of the region.
   const vertical = portrait;
@@ -118,17 +133,12 @@ export function computeLayout(m, { leftHanded = false, assist = false } = {}) {
   return lay;
 }
 
-export function toScreen(lay, x, y) {
-  const dx = (x - L / 2) * lay.s, dy = (y - W / 2) * lay.s;
-  return [lay.cx + dx * lay.ex[0] + dy * lay.ey[0], lay.cy + dx * lay.ex[1] + dy * lay.ey[1]];
-}
-
 export function toWorld(lay, sx, sy) {
   const dx = (sx - lay.cx) / lay.s, dy = (sy - lay.cy) / lay.s;
   return [L / 2 + dx * lay.ex[0] + dy * lay.ex[1], W / 2 + dx * lay.ey[0] + dy * lay.ey[1]];
 }
 
-// World vector -> screen vector (no translation).
-export function dirToScreen(lay, dx, dy) {
-  return [dx * lay.ex[0] + dy * lay.ey[0], dx * lay.ex[1] + dy * lay.ey[1]];
+export function toScreen(lay, x, y) {
+  const dx = (x - L / 2) * lay.s, dy = (y - W / 2) * lay.s;
+  return [lay.cx + dx * lay.ex[0] + dy * lay.ey[0], lay.cy + dx * lay.ex[1] + dy * lay.ey[1]];
 }

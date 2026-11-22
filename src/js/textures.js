@@ -1,5 +1,5 @@
 // Procedural art, painted once with Canvas 2D (at start-up or on resize, never per frame).
-import { L, W, R, FOOT_X, TABLE } from './physics.js';
+import { L, W, FOOT_X, TABLE } from './physics.js';
 import { RAIL, CUSHION } from './layout.js';
 
 export const LAMPS = [[L * 0.27, W / 2, 1.05], [L * 0.73, W / 2, 1.05]];   // world x, y, height
@@ -123,9 +123,16 @@ export function paintScene(lay, dpr) {
   g.restore();
 
   // Cushion rubber strip (cloth-covered)
-  const cush = g.createLinearGradient(0, -CUSHION, 0, W + CUSHION);
-  cush.addColorStop(0, '#08393c'); cush.addColorStop(0.5, '#0a4a4e'); cush.addColorStop(1, '#08393c');
-  g.fillStyle = cush; g.fillRect(-CUSHION, -CUSHION, L + 2 * CUSHION, W + 2 * CUSHION);
+  // each strip shaded across its width: lit at the nose, falling into shadow at the rail
+  g.fillStyle = '#073337'; g.fillRect(-CUSHION, -CUSHION, L + 2 * CUSHION, W + 2 * CUSHION);
+  for (const [x0, y0, x1, y1, w, h] of [
+    [0, 0, 0, -CUSHION, L, -CUSHION], [0, W, 0, W + CUSHION, L, CUSHION],
+    [0, 0, -CUSHION, 0, -CUSHION, W], [L, 0, L + CUSHION, 0, CUSHION, W]]) {
+    const cg = g.createLinearGradient(x0, y0, x1, y1);
+    cg.addColorStop(0, '#11666b'); cg.addColorStop(0.35, '#0b4f53'); cg.addColorStop(1, '#062b2e');
+    g.fillStyle = cg;
+    g.fillRect(x0, y0, w, h);
+  }
   g.strokeStyle = 'rgba(0,0,0,0.5)'; g.lineWidth = 0.003;
   g.strokeRect(-CUSHION, -CUSHION, L + 2 * CUSHION, W + 2 * CUSHION);
 

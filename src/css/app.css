@@ -94,6 +94,12 @@ button { font: inherit; color: inherit; touch-action: manipulation; }
 /* ---------- Assisted aiming ---------- */
 #assist { position: absolute; display: grid; gap: 8px; padding: 10px; border-radius: 16px; background: rgba(16, 24, 26, 0.96); border: 1px solid var(--line); }
 #assist .row { display: flex; gap: 6px; align-items: center; }
+#assist .row.first { padding-right: 52px; }
+#assist.narrow { align-content: start; }
+#assist.narrow .row { flex-wrap: wrap; }
+#assist.narrow .chip-btn { min-width: 0; }
+#assist.narrow #as-shoot { flex: 1 1 100%; }
+#spin-btn { z-index: 3; }
 .chip-btn { flex: 1; min-height: 44px; border-radius: 12px; border: 1px solid var(--line); background: var(--panel-2); font-weight: 700; }
 .chip-btn.primary { background: linear-gradient(180deg, #e7c46a, var(--brass-2)); color: #1d1607; border-color: transparent; }
 #as-power { min-width: 52px; text-align: center; font-weight: 700; font-variant-numeric: tabular-nums; }

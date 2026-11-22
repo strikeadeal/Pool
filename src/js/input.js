@@ -128,7 +128,7 @@ export function attachInput(app) {
     unlockAudio();
     recPointer('roller', e, 0);
     if (!app.inputEnabled() || rl) return;
-    const v = app.lay.roller.vertical;
+    const v = !!app.lay.roller?.vertical;
     rl = { id: e.pointerId, last: v ? e.clientY : e.clientX, v };
     rollerEl.setPointerCapture(e.pointerId);
     e.preventDefault();

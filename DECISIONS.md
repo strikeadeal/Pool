@@ -61,20 +61,29 @@ The base is the **WPA World Standardised Rules for 8-ball** (2025 edition, verif
 - **Exact contact times (continuous collision detection).** Within each step the sim finds the earliest ball–ball or ball–cushion time of impact, advances to it, resolves it and repeats.
   - Overlap-based detection was rejected. At break speed it would give up to 8 mm of penetration, which skews contact normals by degrees. That's unacceptable when a long thin cut needs ±0.02° of aim.
 - **Ball on cloth:** standard sliding, rolling and spinning phases.
-  - Sliding friction `μs = 0.2` makes the slip decay linearly. Rolling resistance is `μr ≈ 0.016` and vertical-axis spin decays at `μsp ≈ 0.044`.
+  - Sliding friction `μs = 0.2` makes the slip decay linearly. Rolling resistance is `μr = 0.013` and vertical-axis spin decays at `μsp = 0.044`.
+  - `μr` was tuned with the cushion restitution against break statistics: 60 seeded racks per setting, aiming for about one ball potted on a hard break and every hard break legal.
   - Draw, follow and stun come out naturally, as does the cue ball's curved path after contact.
 - **Ball–ball:** equal masses, restitution 0.95, frictionless (no throw).
+  - **Clusters and the break use a soft-contact model.** Instant pairwise impulses through a touching rack act like a Newton's cradle: the energy runs down one line of balls.
+    - On the first prototype, 41 of 60 full-power breaks were illegal, with fewer than 4 balls reaching a cushion.
+    - When a ball hits a ball that is touching a third one, the sim switches to Hertzian springs (`F = k·d^1.5`) integrated at about 2 µs substeps, with restitution applied through load/unload hysteresis.
+    - It switches back once no two balls are in contact. It is still deterministic, using only `+ − × ÷ √`.
+    - Result: 60 of 60 breaks legal at every power tested.
   - Throw is real, but it would make the guide line lie by 1–3° on cut shots with no way for a player to learn it. A truthful guide line matters more than that last bit of realism.
-- **Cushions:** restitution 0.80 to 0.70, falling with impact speed.
+- **Cushions:** restitution `0.84 − 0.018·v` (minimum 0.70), falling with impact speed.
   - Side spin interacts with the cushion through a friction impulse, so running english widens the rebound angle and reverse english narrows it.
   - The nose height is above the ball's centre, so most top/back spin is removed at impact. Without this, a rolling ball comes off a cushion at about 30% of its speed instead of about 60%.
 - **Pockets are real geometry, not "close enough" circles.** Each pocket has two rounded jaw points and two angled facings: 142° for corners and 104° for sides, per the WPA spec.
   - Mouths are 117 mm for corners and 130 mm for sides, about 2.05 and 2.27 ball widths on a 7 ft (1.98 × 0.99 m) table.
-  - A ball drops once its centre passes into the drop circle behind the mouth. Balls can rattle in the jaws and bounce off points. A ball rolling along the rail past a side pocket doesn't fall in.
+  - A ball drops once its centre passes a drop line behind the mouth: 0.6 R deep for corners, 0.4 R for sides. The pocket hole is drawn so its edge sits exactly on that line, so what you see matches what the physics does.
+  - Balls can rattle in the jaws, bounce off points, or stop hanging on the lip. A ball rolling along the rail past a side pocket doesn't fall in.
+  - Measured acceptance for a slow ball straight down the pocket's line is about 70 mm for a corner and 84 mm for a side, slightly more generous than the bare mouth-minus-ball figure. This is deliberate for a phone.
 - **Cue:** the cue is level and strikes up to 0.5 R off centre. A 0.4 R top hit gives natural roll exactly.
   - There's no squirt or swerve, so the aim line to first contact is exact. Spin shows its effect after contact and off cushions.
-- **Tests** cover:
+- **Tests** (15, in `test/physics.test.mjs`) cover:
   - head-on and cut collisions (angle, energy, the 90° rule)
+  - the guide line matching the simulated object-ball direction to within 0.005° for 40 cuts
   - cushion rebound angle and speed, and the effect of english
   - stun, draw and follow distances
   - pocketing at each pocket at several speeds
@@ -84,15 +93,17 @@ The base is the **WPA World Standardised Rules for 8-ball** (2025 edition, verif
 
 ## 4. Controls (one-handed, portrait first)
 
-- **Aim by dragging anywhere on the table.** The drag is relative and angular: the cue turns by the finger's change in angle around the cue ball, so it never jumps on touch-down.
-  - Near the cue ball the angle is computed with a minimum radius, so small movements there don't swing the aim wildly.
+- **Aim by dragging anywhere on the table.** The drag is relative and angular: the cue turns by the finger's exact change in angle around the cue ball, so it never jumps on touch-down.
+  - Exact angle differences add up the same however the movement is sampled. A test drags the same path with 8, 16 and 64 events and gets the same aim to 0.000°.
+  - My first version summed small cross-product steps instead. It drifted 1.7° depending on the event rate, which is exactly the 60 Hz versus 120 Hz trap.
+  - Within 60 pt of the cue ball the turn is damped, so small movements there don't swing the aim wildly.
   - **A quick tap** (under about 180 ms and 8 pt) points the cue straight at the tapped spot, for coarse aiming and first-timers.
 - **Fine aim:** a ribbed roller under the table. It turns aim by about 0.012° per point dragged, so a 3 cm drag is about 1.5°. This gives the ±0.02° precision long cuts need.
   - The roller shows a moving rib texture and a haptic tick every 0.25°.
 - **Power:** a vertical pull-back slider on the right edge, mirrored for left-handed play.
   - Touch anywhere on it and pull down. Power is the distance pulled divided by a fixed travel (280 pt, clamped to the slider length), so it feels the same on every phone.
   - Release to shoot. Slide back to the top to cancel.
-  - Ball speed is `maxSpeed × p^1.6`, which gives fine control at the soft end where positional play happens. The cue on the table draws back as you pull, and a % readout follows your thumb.
+  - Ball speed is `8.5 m/s × p^1.6`, which gives fine control at the soft end where positional play happens. The cue on the table draws back as you pull, and a % readout follows your thumb.
 - **Spin:** a small cue-ball button shows the current tip position. Tap it to open a large spin picker, then drag the tip mark. The mark is clamped to the miscue limit, and a "Centre" button resets it. Spin resets after every shot.
 - **Ball in hand:** drag starting on or near the cue ball moves it, and drag elsewhere aims. Placement can't overlap a ball, and a ring plus a hand icon show that it's movable.
 - **Aiming help:** the aim line runs to the first contact, with a ghost ball there.
@@ -109,7 +120,16 @@ The base is the **WPA World Standardised Rules for 8-ball** (2025 edition, verif
 - **Top-down orthographic view; portrait is the primary layout and landscape is fully supported.** iOS ignores the manifest `orientation` for home-screen apps, so both have to work anyway.
 - **Portrait:** the score bar is at the top. The table is vertical with the head string at the bottom, near the thumb. The power slider runs down the right edge, and a bottom deck holds the spin button and fine-aim roller.
 - **Landscape:** the score bar is at the top and the table horizontal. The fine-aim roller and power slider form a single control column on the dominant-hand side, so landscape is also playable one-handed. This layout is deliberately different from the reference game's split left/right controls.
-- **Table size:** the 7 ft bar-box size. On an SE a ball is about 13 pt wide; on a Pro Max it's about 16 pt. Precision comes from angular drag and the roller, not from tapping balls.
+- **Table size:** the 7 ft bar-box size. Measured ball diameters, portrait and landscape:
+
+  | Phone | Portrait | Landscape |
+  |---|---|---|
+  | SE | 13.3 pt | 14.0 pt |
+  | iPhone 15 size | 15.3 pt | 14.9 pt |
+  | Pro Max | 17.1 pt | 16.7 pt |
+
+  Precision comes from angular drag and the roller, not from tapping balls.
+- **Assisted aiming changes the layout.** In portrait its panel replaces the roller under the table. In landscape it replaces the roller in the side column, so the table doesn't shrink.
 
 ## 6. Visuals, sound, haptics
 
@@ -121,13 +141,25 @@ The base is the **WPA World Standardised Rules for 8-ball** (2025 edition, verif
   - The sounds are a ball click, cushion thump, pocket drop, cue strike and UI tick, scaled by impact speed and voice-limited during the break.
   - Uses `navigator.audioSession.type = 'ambient'` where it exists, so the ringer switch mutes the game and the player's music keeps playing.
 - **Haptics:** iOS Safari has no Vibration API. On iOS 18+ a hidden `<input type="checkbox" switch>` produces a system haptic when it toggles, so it's used for the strike, roller ticks and 100% power.
-  - This only works from a user gesture, so collisions can't buzz. It's best-effort, has an off switch, and one source says Apple closed it in iOS 26.5 (unverified).
+  - This only works from a user gesture, so collisions can't buzz. It's best-effort and has an off switch. One third-party source says Apple closed it in iOS 26.5. I haven't verified that, and if true, iPhones on 26.5 or later get no haptics.
+- **Launch screen:** iOS doesn't build a splash screen from the manifest. The app ships `apple-touch-startup-image` PNGs (the cue ball on the room colour) for 13 iPhone screen sizes in both orientations, so launch isn't a white flash.
+  - They're generated by `tools/icons.mjs` and aren't precached, because iOS copies them at install.
 
 ## 7. Modes
 
 - **Pass and play (2 players):** player names are editable. A handover banner names who's up, so the phone can be passed without anyone accidentally shooting.
-- **vs Computer** at Easy, Medium and Hard. The AI searches candidate shots: for each target ball and pocket it works out the ghost-ball aim, checks the path is clear, simulates with the real physics and scores the result for a pot, no foul and the next shot. Difficulty sets the aim error and the size of the search. It also handles breaks, ball in hand placement, calling the 8 and safeties.
+- **vs Computer** at Easy, Medium and Hard, with an aim error (σ) of 1.1°, 0.45° and 0.16°. The AI searches candidate shots: for each target ball and pocket it works out the ghost-ball aim, checks the path is clear, simulates with the real physics and scores the result for a pot, no foul and the next shot. Difficulty sets the aim error and the size of the search. It also handles breaks, ball in hand placement, calling the 8 and safeties.
   - Considered skipping the AI. It doubles as the full-game test harness, since AI-vs-AI games exercise the rules end to end in CI, and it gives a solo player a reason to open the app.
+  - **Measured over 12 AI-vs-AI games per level:**
+
+    | Level | Shots per game | Foul rate |
+    |---|---|---|
+    | Hard vs Hard | 14 | 5% |
+    | Medium vs Medium | 20 | 10% |
+    | Easy vs Easy | 38 | 13% |
+
+    A test requires Hard to beat Easy in at least 70% of games.
+  - It decides in a median of 4–18 ms and at most about 230 ms on a desktop CPU. It is time-sliced, so the UI never blocks.
 - **Practice:** free table, no rules, ball in hand at any time, re-rack button.
 - **Stats:** games played and won per mode and AI level, best run (balls in one visit), and balls potted.
 - **Not built:** trick shots, online play, other games (9-ball and so on), cue collections. See "Next".
@@ -137,7 +169,11 @@ The base is the **WPA World Standardised Rules for 8-ball** (2025 edition, verif
 - **Per frame while balls move:** about 40 draw calls. The table texture is one quad, which is GPU fill only with no CPU raster. Balls and shadows are 2 quads each. CPU work is keyframe interpolation and uniform uploads, under 1.5 ms.
 - **No DOM writes per frame.** The power fill uses `transform` only. The HUD updates only on events (pot, turn change). There are no CSS filters or `backdrop-filter` anywhere.
 - **No animation loop when nothing moves.** `requestAnimationFrame` runs only during playback, cue animation, active touch and UI transitions.
-- **Shot simulation** is time-sliced: at most 6 ms per frame, which keeps it far ahead of playback. Target: a full break simulates in under 300 ms on an SE.
+- **Shot simulation** is time-sliced, at most 6 ms per frame, one 2 ms step at a time, which keeps it far ahead of playback. A full break simulates in about 5–10 ms in Node on a desktop CPU.
+- **Measured** in Chromium with a 4× CPU slowdown, SwiftShader software GL and an SE-sized screen, during a break:
+  - JS per frame was 0.8 ms median and 7.1 ms at the 95th percentile, with one 23 ms worst frame.
+  - With the loop idle, it drew 0 frames in 1.5 s.
+  - This is desktop emulation, not an iPhone (see VERIFICATION.md).
 - **Bundle:** under 250 KB uncompressed and under 20 requests on first load, all precached.
 
 ## 9. The five lessons
@@ -147,7 +183,10 @@ The base is the **WPA World Standardised Rules for 8-ball** (2025 edition, verif
    - In a Safari tab it uses the fixed rect. Safe-area insets are read from a probe element using `env()`.
    - If a notched phone in standalone portrait reports a top inset of 0 while the page fills the screen (an iOS 26.1 behaviour), a heuristic top inset is applied.
    - It re-measures on `resize`, `orientationchange` and `visualViewport.resize`, plus 150 ms and 600 ms after rotation.
+   - `body` is `position: fixed` with `overflow: visible`. The app can then be taller than the reported viewport without clipping, and the page still can't scroll.
    - `html`/`body` and an oversized backdrop are painted in the game's background colour, so any band iOS leaves can never show as a white or black strip.
+   - **The risk I couldn't remove:** if a future iOS really does shrink the page (opaque status bar) while `100vh` still reports the full screen, this picks the larger number, and the bottom controls sit about one status bar too low.
+     - The Diagnostics "Viewport source" switch is the escape hatch for that case, and it takes effect without a rebuild.
    - Diagnostics shows every raw measurement, and there's a hidden "Viewport source" override (Auto / 100vh / innerHeight), so a phone can be fixed without a new build.
 2. **Touch feel**
    - All feel values are in `feel.js`.
@@ -180,7 +219,7 @@ The base is the **WPA World Standardised Rules for 8-ball** (2025 edition, verif
 3. **`powerCurve`** (1.6): raise it toward 2.0 if soft shots go too far, lower it toward 1.3 if mid power feels weak.
 4. **`aimMinRadiusPt`** (60): raise it if aiming near the cue ball is twitchy.
 5. **`tapMaxMs` / `tapMaxMovePt`** (180 ms / 8 pt): lower them if drags get mistaken for taps and the aim jumps.
-6. **`maxBallSpeed`** (7.5 m/s): lower it if the break and power shots feel uncontrollable.
+6. **`maxBallSpeed`** (8.5 m/s): lower it if the break and power shots feel uncontrollable.
 7. **`spinMax`** (0.5 R): lower it toward 0.4 if spin effects feel too strong.
 
 If none of these fix it, record a session (section 4) and send the JSON.

@@ -2,7 +2,7 @@
 // simulated with the real physics and judged with the real rules, then executed with
 // level-dependent aim and pace error. think() is a generator so the UI can time-slice it.
 import { R, L, W, N, HEAD_X, FOOT_X, TABLE, simulate, ghostAim, canPlace, rng } from './physics.js';
-import { judge, legalTargets, onEight, groupOf } from './rules.js';
+import { judge, legalTargets, onEight } from './rules.js';
 import { FEEL } from './feel.js';
 
 export const LEVELS = {
@@ -228,4 +228,3 @@ export function chooseDecision(state) {
   return 'spot';
 }
 
-export { groupOf };
