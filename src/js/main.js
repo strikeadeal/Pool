@@ -77,10 +77,16 @@ function recover(g) {
 }
 
 // ---------------------------------------------------------------- layout
+let portrait = false;
 function relayout() {
   meas = measure(settings.vsource);
   const app = $('app');
   app.style.width = meas.w + 'px'; app.style.height = meas.h + 'px';
+  // Landscape only: iOS can't lock a web app's orientation, so portrait shows a rotate prompt
+  // and frame() stops (playback and the computer pause until the phone turns back).
+  portrait = meas.h > meas.w;
+  document.body.classList.toggle('portrait', portrait);
+  if (portrait && lay) return;
   const st = document.documentElement.style;
   st.setProperty('--sat', meas.insets.t + 'px'); st.setProperty('--sar', meas.insets.r + 'px');
   st.setProperty('--sab', meas.insets.b + 'px'); st.setProperty('--sal', meas.insets.l + 'px');
@@ -92,11 +98,9 @@ function relayout() {
   place($('power'), lay.power);
   place($('roller'), lay.roller);
   place($('spin-btn'), lay.spin);
-  $('roller').classList.toggle('vertical', !!lay.roller?.vertical);
   place($('assist'), lay.assist);
-  $('assist').classList.toggle('narrow', !!lay.assist?.narrow);
-  const b = $('banner'); b.style.top = (lay.table.y + lay.table.h * (lay.portrait ? 0.08 : 0.1)) + 'px';
-  const th = $('thinking'); th.style.left = (lay.cx - 30) + 'px'; th.style.top = (lay.table.y + lay.table.h - 50) + 'px';
+  const b = $('banner'); b.style.left = lay.cx + 'px'; b.style.top = (lay.table.y + lay.table.h - 10) + 'px';
+  const th = $('thinking'); th.style.left = (lay.cx - 30) + 'px'; th.style.top = (lay.table.y + 14) + 'px';
   app.classList.remove('booting');
   input?.showPower(0);
   positionCoach();
@@ -117,6 +121,7 @@ function requestRender() { if (!rafId) rafId = requestAnimationFrame(frame); }
 const frameMs = [];
 function frame(ts) {
   rafId = 0;
+  if (portrait) { lastTs = 0; return; }
   const t0 = performance.now();
   const dt = lastTs ? Math.min(0.05, (ts - lastTs) / 1000) : 0.016;
   lastTs = ts;
@@ -462,9 +467,10 @@ function stepCpu(dt) {
 
 // ---------------------------------------------------------------- HUD & UI
 function chipHtml(n, gone) {
+  if (gone) return '<span class="chip empty"></span>';
   const c = ['', '#f4bf16', '#1d50c2', '#d4261f', '#5a2b8a', '#ef7419', '#178548', '#8b1d25', '#141414'][n > 8 ? n - 8 : n];
   const bg = n > 8 ? `linear-gradient(180deg,#f3efe4 0 22%,${c} 22% 78%,#f3efe4 78%)` : c;
-  return `<span class="chip${gone ? ' gone' : ''}" style="background:${bg}"><i>${n}</i></span>`;
+  return `<span class="chip" style="background:${bg}"><i>${n}</i></span>`;
 }
 
 function updateHud(extraPotted) {
@@ -490,7 +496,7 @@ function updateHud(extraPotted) {
     plate.classList.toggle('active', game.turn === p && game.phase !== 'over');
     if (game.turn === p && game.phase !== 'over') { const sr = document.createElement('span'); sr.className = 'sr-only'; sr.textContent = ', to shoot'; nm.append(sr); }
     const g = game.groups[p];
-    if (!g) { chips.innerHTML = game.phase === 'break' ? (game.turn === p ? 'To break' : '') : 'Open table'; chips.setAttribute('aria-label', chips.textContent || 'No group yet'); }
+    if (!g) { chips.innerHTML = chipHtml(0, true).repeat(7); chips.setAttribute('aria-label', game.phase === 'break' ? (game.turn === p ? 'To break' : 'No group yet') : 'Open table'); }
     else {
       const nums = g === 'S' ? [1, 2, 3, 4, 5, 6, 7] : [9, 10, 11, 12, 13, 14, 15];
       const left = nums.filter(isOn);
@@ -498,6 +504,8 @@ function updateHud(extraPotted) {
       chips.setAttribute('aria-label', `${Rules.groupName(g)}: ${left.length ? left.join(', ') + ' left' : 'on the 8'}`);
     }
   }
+  // Centre caption: the stage of the rack until groups are set.
+  $('status-cap').textContent = game.mode === 'practice' ? '' : game.phase === 'break' ? 'Break' : !game.groups[0] ? 'Open' : '';
   $('p-rerack').hidden = game.mode !== 'practice';
   $('p-forfeit').hidden = game.mode === 'practice';
 }
@@ -541,7 +549,7 @@ function showTutorial() {
   if (!game || game.mode === undefined || !isHumanTurn() || screenName !== 'game' || overlay) return hideCoach();
   const step = settings.tutorial;
   if (step === 0) coach('Drag on the table to aim', 'table');
-  else if (step === 1) coach(lay.portrait ? 'Pull down to shoot' : 'Pull down to shoot', 'power');
+  else if (step === 1) coach('Pull down to shoot', 'power');
   else if (step === 2 && lay.roller) coach('Slide to fine-tune', 'roller');
   else hideCoach();
 }
@@ -568,13 +576,13 @@ function positionCoach() {
     const y = Math.min(t.y + t.h - 30, Math.max(t.y + 60, by - (uy / ul) * 110));
     c.style.left = x + 'px'; c.style.top = y + 'px';
   }
-  else if (coachTarget === 'power') {
-    c.style.left = Math.max(110, Math.min(lay.w - 110, lay.power.x + lay.power.w / 2 - (settings.left ? -90 : 90))) + 'px';
-    c.style.top = (lay.power.y + 40) + 'px';
-  } else if (coachTarget === 'roller') {
-    if (!lay.roller) return;
-    c.style.left = (lay.roller.vertical ? lay.roller.x - 80 : lay.roller.x + lay.roller.w / 2) + 'px';
-    c.style.top = (lay.roller.vertical ? lay.roller.y + 40 : lay.roller.y - 52) + 'px';
+  else {
+    // Beside the control, on the side facing the middle of the screen.
+    const r = coachTarget === 'power' ? lay.power : lay.roller;
+    if (!r) return;
+    const cw = c.offsetWidth || 200;
+    c.style.left = (r.x < lay.w / 2 ? r.x + r.w + 12 + cw / 2 : r.x - 12 - cw / 2) + 'px';
+    c.style.top = (r.y + 40) + 'px';
   }
 }
 function hideCoach() { $('coach').classList.remove('show'); coachTarget = null; }
@@ -705,7 +713,7 @@ function fillStats() {
 function fillDiag() {
   const m = meas || measure(settings.vsource);
   $('diag-vp').textContent = [
-    `version ${VERSION}`, `standalone ${m.standalone}  source ${m.source}${m.heuristic ? '  heuristic ' + m.heuristic : ''}`,
+    `version ${VERSION}`, `standalone ${m.standalone}  source ${m.source}`,
     `app ${m.w}×${m.h}  dpr ${m.raw.dpr}`, `inner ${m.raw.innerW}×${m.raw.innerH}  fixed ${m.raw.fixedW}×${m.raw.fixedH}`,
     `100vh ${m.raw.vh100}  visual ${m.raw.visualH}  client ${m.raw.clientH}`, `screen ${m.raw.screenW}×${m.raw.screenH}`,
     `safe(env) ${m.raw.safe}`, `insets used t${m.insets.t} r${m.insets.r} b${m.insets.b} l${m.insets.l}`,
@@ -919,7 +927,7 @@ function boot() {
   }
   renderer.onRestore = requestRender;
   applySettings();
-  initRecorder(() => ({ viewport: meas, layout: lay && { portrait: lay.portrait, table: lay.table, ballPx: lay.ballPx }, version: VERSION }));
+  initRecorder(() => ({ viewport: meas, layout: lay && { table: lay.table, ballPx: lay.ballPx }, version: VERSION }));
   Store.requestPersistence();
   titleBalls = Rules.newGame({ mode: 'practice', players: [{ name: '' }], seed: 20240607 }).balls;
   game = recover(Store.load('game', null));

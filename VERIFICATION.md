@@ -16,14 +16,15 @@ Treat every iOS-specific behaviour (standalone viewport, safe areas, haptics, au
 | `storage.test.mjs` (5) | Versioned keys and revisions. A stale tab can't overwrite newer data. Older code never writes over a newer schema. Read-modify-write stats don't lose records across tabs. Corrupt data falls back. |
 | `game.test.mjs` (2) | Six complete computer-vs-computer games through the real physics and rules, with state invariants checked every shot. **Hard beats Easy in at least 70% of 10 games.** |
 
-## 2. Browser checks (Chromium 153 headless, SwiftShader WebGL, Playwright 1.63): 24 pass
+## 2. Browser checks (Chromium 153 headless, SwiftShader WebGL, Playwright 1.63): 22 pass
 
 Command: `node tools/e2e/verify.cjs chromium --shots`. It runs against the **production build served under `/pool/`** by a server that mimics GitHub Pages, including its 10-minute cache header.
 
 | Check | Result |
 |---|---|
-| Layout, emulated safe areas, at SE (375×667), standard (393×852) and Pro Max (430×932), portrait and landscape. Controls are on screen, inside the safe area, and clear of the table. | 6/6. Ball sizes: 13.3–17.1 px |
-| Assisted-aiming layout, portrait and landscape, right- and left-handed. No overlaps. | 4/4 |
+| Layout, emulated safe areas, at SE (667×375), standard (852×393) and Pro Max (932×430), landscape. Controls are on screen, inside the safe area, and clear of the table; power is left of it, the roller right of it, spin top right. | 3/3. Ball sizes: 14.1–16.5 px |
+| Assisted-aiming layout at standard and SE sizes, right- and left-handed. No overlaps. | 4/4 |
+| **Portrait:** the rotate screen covers the game, no frames run (a shot in flight stops dead), and the shot finishes after turning back | pass |
 | Aim drag gives the same result with 8, 16 or 64 touch events for the same path (the 60 Hz versus 120 Hz question) | 0.000° spread |
 | Fine roller gives the same result at any event rate | exact |
 | A complete pass-and-play game through the UI, ending on the game-over screen | pass |
@@ -35,11 +36,11 @@ Command: `node tools/e2e/verify.cjs chromium --shots`. It runs against the **pro
 | **Update mid-game:** the new version waits, with no reload and the "update ready" pill shown | pass |
 | **Update at the menu:** applies and reloads, and the saved game continues unchanged | pass |
 | **Update found at launch** (before any input) installs immediately | pass |
-| JS time per frame during a break with **4× CPU throttling** (SE-sized screen) | median 0.8 ms, 95th percentile 7.1 ms, worst 23.5 ms (one frame) |
+| JS time per frame during a break with **4× CPU throttling** (SE-sized screen) | median 0.8 ms, 95th percentile 7.7 ms, worst 24.3 ms (one frame) |
 | No animation frames while idle | 0 frames in 1.5 s |
 | Console errors or uncaught exceptions across all of the above | none |
 
-**Screenshots:** they're in [`docs/screenshots/`](docs/screenshots). There's a title and an in-game shot for each size and orientation, plus the game-over screen.
+**Screenshots:** they're in [`docs/screenshots/`](docs/screenshots). There's a title and an in-game shot for each size (landscape), the game-over screen, and the portrait rotate screen.
 
 **Other things I looked at by eye in screenshots:**
 - the settings, help, setup, spin picker, pause, stats and game-over screens
@@ -55,9 +56,10 @@ Command: `node tools/e2e/verify.cjs chromium --shots`. It runs against the **pro
 ## 3. Not verified: needs your iPhone
 
 - Add to Home Screen: name, icon and launch image.
-- **The standalone viewport:** full-screen with no band at the top or bottom, in portrait and landscape, on your iOS version. This is the bug that bit you last time. My fix is designed from bug reports, not observed on a device.
+- **The standalone viewport:** full-screen with no band at any edge in landscape, on your iOS version. This is the bug that bit you last time. My fix is designed from bug reports, not observed on a device.
 - **The iOS 26 bottom-band fix** (DECISIONS.md §9.1). Seen on your iPhone, fixed from WebKit bug 301108 reports; Chromium can't reproduce the short viewport, so only your phone can confirm it.
-- Real `env(safe-area-inset-*)` values, and whether my iOS 26.1 zero-top-inset heuristic ever kicks in.
+- Real `env(safe-area-inset-*)` values in landscape (the notch side and the home indicator).
+- **The rotate screen:** that turning the phone upright mid-shot freezes the game and it carries on when turned back, and what happens with Portrait Orientation Lock on (the prompt should tell you to switch it off).
 - **Touch feel** with real fingers: aim gain, roller gain, power travel and curve.
 - **120 Hz ProMotion:** the maths is rate-independent and tested, but Safari's actual frame rate isn't.
 - Performance on an SE-class GPU during the break.
@@ -71,7 +73,7 @@ Command: `node tools/e2e/verify.cjs chromium --shots`. It runs against the **pro
 
 ## 4. What to try first on the phone (10 minutes)
 
-1. **Install and look.** Install from Safari and launch from the icon. Look at the very top and bottom in portrait, rotate to landscape, rotate back.
+1. **Install and look.** Install from Safari and launch from the icon, holding the phone sideways. Check all four edges, turn the phone the other way round, then upright (you should get the rotate screen) and back.
    - If anything is cut off or there's a band, go to Settings, long-press the version label for 2 s, and screenshot the Diagnostics panel.
    - Then try "Viewport source": 100vh, innerHeight, Fixed. Tell me which one looks right.
 2. **Break hard and watch.** Play a break against the computer. Watch for stutter and listen for the sounds (ringer switch on).

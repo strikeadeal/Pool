@@ -128,22 +128,20 @@ export function attachInput(app) {
     unlockAudio();
     recPointer('roller', e, 0);
     if (!app.inputEnabled() || rl) return;
-    const v = !!app.lay.roller?.vertical;
-    rl = { id: e.pointerId, last: v ? e.clientY : e.clientX, v };
+    rl = { id: e.pointerId, last: e.clientY };
     rollerEl.setPointerCapture(e.pointerId);
     e.preventDefault();
   });
   rollerEl.addEventListener('pointermove', (e) => {
     if (!rl || e.pointerId !== rl.id) return;
-    const cur = rl.v ? e.clientY : e.clientX;
-    const d = cur - rl.last;
-    rl.last = cur;
+    const d = e.clientY - rl.last;
+    rl.last = e.clientY;
     if (!d) return;
     const deg = d * FEEL.fineAimDegPerPt;
     recPointer('roller', e, deg);
-    app.setAim(app.aim - deg * DEG, 'fine');   // right/down = clockwise
+    app.setAim(app.aim - deg * DEG, 'fine');   // down = clockwise
     ribOffset = (ribOffset + d) % 10;
-    ribs.style.transform = rl.v ? `translateY(${ribOffset}px)` : `translateX(${ribOffset}px)`;
+    ribs.style.transform = `translateY(${ribOffset}px)`;
     tickAcc += Math.abs(deg);
     if (tickAcc >= FEEL.fineTickDeg) { tickAcc = 0; haptic('light'); play('tick', 0.12); }
   });

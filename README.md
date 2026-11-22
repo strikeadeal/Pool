@@ -6,7 +6,7 @@
 - Physics are deterministic, rules are WPA-based, and it works offline.
 - No accounts, ads, coins or servers.
 
-![Baize on an iPhone-sized screen](docs/screenshots/standard-portrait-game.jpg)
+![Baize on an iPhone-sized screen](docs/screenshots/standard-landscape-game.jpg)
 
 ## Before you deploy: two GitHub things to check
 
@@ -28,7 +28,8 @@
 
 1. Open the site in **Safari**.
 2. Tap the Share button, then **Add to Home Screen**, then **Add**.
-3. Launch Baize from its icon. It runs full-screen.
+3. Launch Baize from its icon. It runs full-screen, **in landscape only**. Holding the phone upright shows a "turn sideways" screen and pauses the game.
+   - If the screen doesn't turn, Portrait Orientation Lock is on: switch it off in Control Centre. iOS doesn't let a web app override it.
 4. Open it once while online. After that it works in Airplane Mode.
 
 **Updates:**
@@ -46,9 +47,10 @@
 | | |
 |---|---|
 | **Aim** | Drag anywhere on the table; the cue turns with your finger. Tap a spot to point straight at it. |
-| **Fine-tune** | Slide the ribbed roller under the table (beside it in landscape) for small adjustments. |
-| **Shoot** | Pull the power bar down and let go. Slide back to the top to cancel. |
-| **Spin** | Tap the little cue ball to set where the cue hits: above for follow, below for draw, sides for english. |
+| **Fine-tune** | Slide the ribbed roller down the right edge for small adjustments. |
+| **Shoot** | Pull the power bar on the left edge down and let go. Slide back to the top to cancel. Left-handed controls swap the two sides. |
+| **Spin** | Tap the little cue ball in the top-right corner to set where the cue hits: above for follow, below for draw, sides for english. |
+| **Table status** | Tap the 8-ball between the player names for a spoken and written summary. |
 | **Ball in hand** | Drag the cue ball (it has a ring around it) to place it. |
 | **Calling the 8** | The game suggests a pocket (gold ring); tap another pocket to change it. |
 | **Watching** | Tap during a shot to fast-forward. |
@@ -83,7 +85,7 @@ npm start         # builds to dist/ and serves it at http://localhost:8080/pool/
 - **Browser tests** (optional; needs Playwright, `npm i -D playwright && npx playwright install chromium webkit`):
 
   ```sh
-  node tools/e2e/verify.cjs chromium --shots   # 24 checks; screenshots into docs/screenshots
+  node tools/e2e/verify.cjs chromium --shots   # 22 checks; screenshots into docs/screenshots
   node tools/e2e/verify.cjs webkit             # the same checks in WebKit
   ```
 

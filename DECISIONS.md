@@ -91,16 +91,16 @@ The base is the **WPA World Standardised Rules for 8-ball** (2025 edition, verif
   - no tunnelling at maximum speed, and balls always staying on the table across random shots
   - determinism
 
-## 4. Controls (one-handed, portrait first)
+## 4. Controls (two thumbs, landscape)
 
 - **Aim by dragging anywhere on the table.** The drag is relative and angular: the cue turns by the finger's exact change in angle around the cue ball, so it never jumps on touch-down.
   - Exact angle differences add up the same however the movement is sampled. A test drags the same path with 8, 16 and 64 events and gets the same aim to 0.000°.
   - My first version summed small cross-product steps instead. It drifted 1.7° depending on the event rate, which is exactly the 60 Hz versus 120 Hz trap.
   - Within 60 pt of the cue ball the turn is damped, so small movements there don't swing the aim wildly.
   - **A quick tap** (under about 180 ms and 8 pt) points the cue straight at the tapped spot, for coarse aiming and first-timers.
-- **Fine aim:** a ribbed roller under the table. It turns aim by about 0.012° per point dragged, so a 3 cm drag is about 1.5°. This gives the ±0.02° precision long cuts need.
+- **Fine aim:** a ribbed roller down the right edge (left edge for left-handed play). It turns aim by about 0.012° per point dragged, so a 3 cm drag is about 1.5°. This gives the ±0.02° precision long cuts need.
   - The roller shows a moving rib texture and a haptic tick every 0.25°.
-- **Power:** a vertical pull-back slider on the right edge, mirrored for left-handed play.
+- **Power:** a vertical pull-back slider down the left edge, mirrored for left-handed play. A cue drawn inside it slides down as you pull.
   - Touch anywhere on it and pull down. Power is the distance pulled divided by a fixed travel (280 pt, clamped to the slider length), so it feels the same on every phone.
   - Release to shoot. Slide back to the top to cancel.
   - Ball speed is `8.5 m/s × p^1.6`, which gives fine control at the soft end where positional play happens. The cue on the table draws back as you pull, and a % readout follows your thumb.
@@ -117,19 +117,16 @@ The base is the **WPA World Standardised Rules for 8-ball** (2025 edition, verif
 
 ## 5. Camera and layout
 
-- **Top-down orthographic view; portrait is the primary layout and landscape is fully supported.** iOS ignores the manifest `orientation` for home-screen apps, so both have to work anyway.
-- **Portrait:** the score bar is at the top. The table is vertical with the head string at the bottom, near the thumb. The power slider runs down the right edge, and a bottom deck holds the spin button and fine-aim roller.
-- **Landscape:** the score bar is at the top and the table horizontal. The fine-aim roller and power slider form a single control column on the dominant-hand side, so landscape is also playable one-handed. This layout is deliberately different from the reference game's split left/right controls.
-- **Table size:** the 7 ft bar-box size. Measured ball diameters, portrait and landscape:
-
-  | Phone | Portrait | Landscape |
-  |---|---|---|
-  | SE | 13.3 pt | 14.0 pt |
-  | iPhone 15 size | 15.3 pt | 14.9 pt |
-  | Pro Max | 17.1 pt | 16.7 pt |
+- **Top-down orthographic view, landscape only** (changed after the first phone test, at your request).
+  - iPhone Safari ignores the manifest `orientation` and has no `screen.orientation.lock()` (checked Nov 2026), so a home-screen app can't force landscape. Portrait shows a "turn your phone sideways" screen instead, and the game freezes (the frame loop stops, so shot playback and the computer pause) until the phone turns back.
+  - **Known cost:** with Portrait Orientation Lock on, the phone never rotates. The prompt tells the player to switch the lock off. Drawing the game rotated in portrait would avoid that, but every touch mapping, the safe areas and the keyboard would need rotating too.
+  - The manifest says `landscape` anyway, for Android and desktop installs.
+- **Arrangement** follows the common mobile-pool convention you pointed me at: menu top left, player plates (name plus seven ball slots) meeting in the middle around a table-status button, spin top right, power down the left edge, fine-aim roller down the right edge, the table centred between them, and turn messages as a toast along the bottom of the table. Left-handed swaps the two side columns.
+  - Only the arrangement is shared. The art (teal cloth, walnut rails, brass accents, the cue, no avatars or badges) stays Baize's own; copying the reference's look would recreate that game, which the brief ruled out.
+- **Table size:** the 7 ft bar-box size. It's limited by screen height, not width. Measured ball diameters: SE 14.1 pt, iPhone 15 size 14.7 pt, Pro Max 16.5 pt.
 
   Precision comes from angular drag and the roller, not from tapping balls.
-- **Assisted aiming changes the layout.** In portrait its panel replaces the roller under the table. In landscape it replaces the roller in the side column, so the table doesn't shrink.
+- **Assisted aiming** replaces the roller column with a wider button panel, so the table shrinks a little (12.6 pt balls on an iPhone 15 size).
 
 ## 6. Visuals, sound, haptics
 
@@ -181,7 +178,6 @@ The base is the **WPA World Standardised Rules for 8-ball** (2025 edition, verif
 1. **Installed-app viewport**
    - The layout size comes from JavaScript, not CSS units. In standalone mode the app takes the largest of `100vh` (probe element), the `position:fixed; inset:0` rect and `innerHeight`, capped at the screen size for the current orientation. That covers the reported short-viewport bug.
    - In a Safari tab it uses the fixed rect. Safe-area insets are read from a probe element using `env()`.
-   - If a notched phone in standalone portrait reports a top inset of 0 while the page fills the screen (an iOS 26.1 behaviour), a heuristic top inset is applied.
    - It re-measures on `resize`, `orientationchange` and `visualViewport.resize`, plus 150 ms and 600 ms after rotation.
    - `body` is `position: fixed` with `overflow: visible`. The app can then be taller than the reported viewport without clipping, and the page still can't scroll.
    - `html`/`body` and an oversized backdrop are painted in the game's background colour, so any band iOS leaves can never show as a white or black strip.

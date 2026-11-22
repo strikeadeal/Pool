@@ -161,7 +161,7 @@ export class Renderer {
     if (this.lost) return;
     gl.viewport(0, 0, c.width, c.height);
     // Repaint the table only when its geometry actually changed (resize events are frequent).
-    const key = [lay.w, lay.h, dpr, lay.s, lay.cx, lay.cy, lay.portrait].join();
+    const key = [lay.w, lay.h, dpr, lay.s, lay.cx, lay.cy].join();
     if (key !== this.bgKey || !this.bgTex) {
       if (this.bgTex) gl.deleteTexture(this.bgTex);
       this.bgTex = texture(gl, paintScene(lay, dpr), false);

@@ -27,7 +27,7 @@ function serve() {
 }
 const launchArgs = engineName === 'chromium' ? { args: ['--use-gl=angle', '--use-angle=swiftshader', '--enable-unsafe-swiftshader'] } : {};
 
-async function newPage(browser, { w = 393, h = 852, dpr = 2, insets = '', ctx = null } = {}) {
+async function newPage(browser, { w = 852, h = 393, dpr = 2, insets = '', ctx = null } = {}) {
   const context = ctx || await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: dpr, hasTouch: true, isMobile: engineName === 'chromium' });
   const page = await context.newPage();
   page.on('console', (m) => { if (m.type() === 'error') errors.push(`[${w}x${h}] console: ${m.text()}`); });
@@ -78,15 +78,16 @@ async function playToEnd(page, maxTurns = 300) {
   let server = await serve();
   const browser = await engine.launch(launchArgs);
   try {
-    // ---------- 1. screenshots at three phone sizes, both orientations ----------
+    // ---------- 1. screenshots at three phone sizes (landscape only) ----------
     const devices = [
-      ['se', 375, 667, 2, '20,0,0,0', '0,0,0,0'],
-      ['standard', 393, 852, 3, '59,0,34,0', '0,59,21,59'],
-      ['promax', 430, 932, 3, '59,0,34,0', '0,59,21,59'],
+      ['se', 667, 375, 2, '0,0,0,0'],
+      ['standard', 852, 393, 3, '0,59,21,59'],
+      ['promax', 932, 430, 3, '0,59,21,59'],
     ];
     if (SHOTS) fs.mkdirSync(OUT, { recursive: true });
-    for (const [name, w, h, dpr, ip, il] of devices) {
-      for (const [orient, vw, vh, ins] of [['portrait', w, h, ip], ['landscape', h, w, il]]) {
+    for (const [name, vw, vh, dpr, ins] of devices) {
+      {
+        const orient = 'landscape';
         const { page, context, url } = await newPage(browser, { w: vw, h: vh, dpr, insets: ins });
         await page.goto(url);
         await page.waitForTimeout(700);
@@ -106,14 +107,16 @@ async function playToEnd(page, maxTurns = 300) {
         const clearOfTable = rects.filter(([id]) => id !== 'hud').every(([, l, t, r, b]) => r <= tb.x + 1 || l >= tb.x + tb.w - 1 || b <= tb.y + 1 || t >= tb.y + tb.h - 1);
         const [it, ir, ib, il2] = ins.split(',').map(Number);
         const safe = rects.every(([, l, t, r, b]) => t >= it - 0.5 && b <= vh - ib + 0.5 && l >= il2 - 0.5 && r <= vw - ir + 0.5);
-        ok(`layout ${name} ${orient}: controls on screen, inside safe area, clear of the table`, inside && clearOfTable && safe, `ball ${lay.ballPx.toFixed(1)}px, table ${Math.round(tb.w)}×${Math.round(tb.h)}`);
+        const at = Object.fromEntries(rects.map(([id, l, t, r, b]) => [id, { l, t, r, b }]));
+        const placed = at.power.r <= tb.x + 1 && at.roller.l >= tb.x + tb.w - 1 && at['spin-btn'].b <= tb.y + 1 && at['spin-btn'].l >= tb.x + tb.w - 1;
+        ok(`layout ${name} ${orient}: controls on screen, inside safe area, clear of the table; power left, roller right, spin top right`, inside && clearOfTable && safe && placed, `ball ${lay.ballPx.toFixed(1)}px, table ${Math.round(tb.w)}×${Math.round(tb.h)}`);
         if (SHOTS) await page.screenshot({ path: `${OUT}/${name}-${orient}-game.jpg`, quality: 82, type: 'jpeg' });
         await context.close();
       }
     }
 
     // ---------- 1b. assisted aiming and left-handed layouts ----------
-    for (const [orient, vw, vh, ins] of [['portrait', 393, 852, '59,0,34,0'], ['landscape', 852, 393, '0,59,21,59']]) {
+    for (const [orient, vw, vh, ins] of [['standard', 852, 393, '0,59,21,59'], ['SE', 667, 375, '0,0,0,0']]) {
       for (const left of [false, true]) {
         const { page, context, url } = await newPage(browser, { w: vw, h: vh, dpr: 1 });
         await page.goto(`${URL}?insets=${ins}&standalone=1`);
@@ -127,7 +130,7 @@ async function playToEnd(page, maxTurns = 300) {
         });
         const ov = (a, b) => a && b && a.l < b.r - 1 && b.l < a.r - 1 && a.t < b.b - 1 && b.t < a.b - 1;
         const inside = (a, b) => a.l >= b.l - 0.5 && a.r <= b.r + 0.5 && a.t >= b.t - 0.5 && a.b <= b.b + 0.5;
-        const good = r.assist && !ov(r.assist, r.power) && !ov(r.assist, r.table) && !ov(r.power, r.table) && inside(r.spin, r.assist) && (!r.roller || (!ov(r.roller, r.assist) && !ov(r.roller, r.table)));
+        const good = r.assist && !ov(r.assist, r.power) && !ov(r.assist, r.table) && !ov(r.power, r.table) && ![r.assist, r.power, r.table].some((x) => ov(r.spin, x)) && !r.roller;
         ok(`assisted aiming ${orient}${left ? ' left-handed' : ''}: panel, power and table don't overlap`, good, `ball ${r.ball.toFixed(1)}px`);
         await context.close();
       }
@@ -153,13 +156,32 @@ async function playToEnd(page, maxTurns = 300) {
       const r = lay.roller;
       const fine = async (steps) => {
         await B(page, () => window.__baize.setAim(0));
-        await page.mouse.move(r.x + 20, r.y + r.h / 2); await page.mouse.down();
-        for (let i = 1; i <= steps; i++) await page.mouse.move(r.x + 20 + (100 * i) / steps, r.y + r.h / 2);
+        await page.mouse.move(r.x + r.w / 2, r.y + 40); await page.mouse.down();
+        for (let i = 1; i <= steps; i++) await page.mouse.move(r.x + r.w / 2, r.y + 40 + (100 * i) / steps);
         await page.mouse.up();
         return B(page, () => window.__baize.app.aim * 180 / Math.PI);
       };
       const f1 = await fine(5), f2 = await fine(50);
       ok('fine roller: 100 px gives the same aim change at any event rate', Math.abs(f1 - f2) < 1e-9 && Math.abs(Math.abs(f1) - 1.2) < 1e-6, `${f1.toFixed(4)}° vs ${f2.toFixed(4)}°`);
+      await context.close();
+    }
+
+    // ---------- 2b. portrait: rotate prompt, game frozen mid-shot, carries on after turning back ----------
+    {
+      const { page, context, url } = await newPage(browser);
+      await page.goto(url); await page.waitForTimeout(400);
+      await page.click('[data-go="setup-pvp"]'); await page.click('#setup-start'); await page.waitForTimeout(300);
+      await B(page, () => window.__baize.shoot(1));
+      await page.waitForTimeout(200);
+      await page.setViewportSize({ width: 393, height: 852 });
+      await page.waitForTimeout(800);
+      const shown = await page.isVisible('#rotate');
+      const frozen = await B(page, async () => { const Bz = window.__baize, n = Bz.frameMs.length, t = Bz.pb?.t; await new Promise((r) => setTimeout(r, 1000)); return { frames: Bz.frameMs.length - n, pb: !!Bz.pb, same: Bz.pb?.t === t }; });
+      if (SHOTS) await page.screenshot({ path: `${OUT}/standard-portrait-rotate.jpg`, quality: 82, type: 'jpeg' });
+      await page.setViewportSize({ width: 852, height: 393 });
+      await waitIdle(page);
+      const after = await B(page, () => ({ hidden: !document.getElementById('rotate').checkVisibility(), shot: window.__baize.game.shotNo }));
+      ok('portrait: rotate prompt covers the game, which freezes mid-shot and finishes after turning back', shown && frozen.frames === 0 && frozen.pb && frozen.same && after.hidden && after.shot >= 1, `${frozen.frames} frames while upright`);
       await context.close();
     }
 
@@ -176,7 +198,7 @@ async function playToEnd(page, maxTurns = 300) {
       await page.waitForSelector('#over:not([hidden])', { timeout: 5000 }).catch(() => {});
       const shown = await page.isVisible('#over');
       ok('complete pass-and-play game reaches a winner with the game-over screen', done && over.phase === 'over' && shown, `${over.shots} shots, ${((Date.now() - t0) / 1000).toFixed(0)} s: ${over.reason}`);
-      if (SHOTS) await page.screenshot({ path: `${OUT}/standard-portrait-gameover.jpg`, quality: 82, type: 'jpeg' });
+      if (SHOTS) await page.screenshot({ path: `${OUT}/standard-landscape-gameover.jpg`, quality: 82, type: 'jpeg' });
       await context.close();
     }
 
@@ -249,7 +271,7 @@ async function playToEnd(page, maxTurns = 300) {
 
     // ---------- 6. offline launch and update flow (service worker) ----------
     {
-      const context = await browser.newContext({ viewport: { width: 393, height: 852 }, deviceScaleFactor: 2, hasTouch: true });
+      const context = await browser.newContext({ viewport: { width: 852, height: 393 }, deviceScaleFactor: 2, hasTouch: true });
       const { page } = await newPage(browser, { ctx: context });
       await page.goto(URL);
       await page.waitForFunction(() => navigator.serviceWorker && navigator.serviceWorker.controller, null, { timeout: 20000 });
@@ -290,7 +312,7 @@ async function playToEnd(page, maxTurns = 300) {
 
     // ---------- 7. frame cost during a break (JS time per frame, 4x CPU throttle) ----------
     if (engineName === 'chromium') {
-      const { page, context, url } = await newPage(browser, { w: 375, h: 667, dpr: 2 });
+      const { page, context, url } = await newPage(browser, { w: 667, h: 375, dpr: 2 });
       await page.goto(url); await page.waitForTimeout(500);
       const cdp = await context.newCDPSession(page);
       await page.click('[data-go="setup-pvp"]'); await page.click('#setup-start'); await page.waitForTimeout(300);
