@@ -265,6 +265,33 @@ async function playToEnd(page, maxTurns = 300) {
       await context.close();
     }
 
+    // ---------- 4a. restart from the pause menu ----------
+    {
+      const { page, context, url } = await newPage(browser);
+      await page.goto(url); await page.waitForTimeout(500);
+      await page.click('[data-go="setup-cpu"]'); await page.click('[data-level="1"]');
+      await page.click('#call-seg [data-v="any"]'); await page.click('#setup-start');
+      for (let i = 0; i < 2; i++) await playOne(page);
+      // Setup now says Hard and calling on: Restart must copy the game being restarted, not setup.
+      await B(page, () => { window.__baize.settings.level = 3; window.__baize.settings.eight = 'call'; });
+      const played = await B(page, () => JSON.parse(localStorage.getItem('baize.v1.stats') || '{}').data?.played ?? 0);
+      const shotsBefore = await B(page, () => window.__baize.game.shotNo);
+      await page.click('#menu-btn'); await page.waitForTimeout(200);
+      await page.click('#p-restart');
+      const armed = await B(page, () => [document.getElementById('p-restart').textContent, window.__baize.game.shotNo, window.__baize.overlay]);
+      await page.click('#p-restart'); await page.waitForTimeout(300);
+      const g = await B(page, () => { const b = window.__baize, g = b.game; return { phase: g.phase, shotNo: g.shotNo, turn: g.turn, level: g.players[1].cpu, call: g.callEight, overlay: b.overlay, on: [...g.balls.on].every(Boolean) }; });
+      const playedAfter = await B(page, () => JSON.parse(localStorage.getItem('baize.v1.stats') || '{}').data?.played ?? 0);
+      ok('restart: first tap asks again; second starts the same game from the break, unrecorded',
+        armed[0] === 'Tap again to restart' && armed[1] === shotsBefore && armed[2] === 'pause' && shotsBefore > 0 &&
+        g.phase === 'break' && g.shotNo === 0 && g.turn === 0 && g.on && g.level === 1 && g.call === false && g.overlay === null && playedAfter === played,
+        `level ${g.level}, calling ${g.call}, games recorded ${played} → ${playedAfter}`);
+      await page.click('#menu-btn'); await page.waitForTimeout(200);
+      const prac = await B(page, () => document.getElementById('p-restart').textContent);
+      await context.close();
+      if (prac !== 'Restart game') ok('restart: button resets when the menu reopens', false, prac);
+    }
+
     // ---------- 5. resume after closing, and recovery of a shot in flight ----------
     {
       const { page, context, url } = await newPage(browser);

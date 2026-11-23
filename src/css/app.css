@@ -235,6 +235,9 @@ pre#diag-vp { font: 11px/1.45 ui-monospace, Menlo, monospace; color: #cfe; backg
   #title .title-inner { max-width: 640px; }
   #title .menu { grid-template-columns: repeat(3, 1fr); }
   #title .menu .menu-row, #title #t-continue { grid-column: 1 / -1; }
+  #pause .card { max-width: 560px; }
+  #pause .menu { grid-template-columns: 1fr 1fr; }
+  #pause #p-resume, #pause #p-forfeit { grid-column: 1 / -1; }
   .btn { min-height: 44px; }
 }
 
