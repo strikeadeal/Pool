@@ -356,7 +356,7 @@ function finishShot() {
   const kind = report.fouls.length ? 'foul' : game.phase === 'over' ? 'win' : '';
   if (report.title && game.phase !== 'over') banner(report.title, report.detail, kind, report.fouls.length ? 3200 : 2200);
   announce([report.title, report.detail].filter(Boolean).join('. '));
-  if (report.turnChange && game.mode === 'pvp') lockUntil = performance.now() + 700;
+  if (report.turnChange && game.mode === 'pvp') { lockUntil = performance.now() + 700; setTimeout(updateControls, 710); }
   spin = { a: 0, b: 0 }; updateSpinUi();
   calledManual = false;
   if (game.mode !== 'practice' && game.phase !== 'over') game.called = null;
@@ -536,6 +536,10 @@ function updateControls() {
   $('controls').hidden = !show;
   $('controls').classList.toggle('cpu', !!(show && !isHumanTurn()));
   $('assist').hidden = !(show && settings.assist && isHumanTurn());
+  // Your turn but the controls can't act yet (balls rolling, pass-and-play handover): dim them so a tap
+  // that does nothing doesn't look like a missed tap.
+  const wait = !!(show && isHumanTurn() && !overlay && !inputEnabled());
+  $('controls').classList.toggle('locked', wait); $('assist').classList.toggle('locked', wait);
   if (!show) $('thinking').hidden = true;
 }
 

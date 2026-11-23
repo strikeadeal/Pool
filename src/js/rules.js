@@ -5,6 +5,10 @@ import { rack, spotBall, canPlace, cloneBalls, HEAD_X, L, W, R } from './physics
 export const POCKET_NAMES = ['bottom-left', 'bottom side', 'bottom-right', 'top-right', 'top side', 'top-left'];
 
 export const groupOf = (n) => (n === 0 ? null : n < 8 ? 'S' : n === 8 ? '8' : 'T');
+// "solids 3, 5 and stripe 9": the table is still open after the break, so say which group each ball is in.
+export const ballsByGroup = (balls) => [['S', 'solid'], ['T', 'stripe']]
+  .map(([g, w]) => { const l = balls.filter((b) => groupOf(b) === g); return l.length ? `${w}${l.length > 1 ? 's' : ''} ${l.join(', ')}` : ''; })
+  .filter(Boolean).join(' and ');
 export const groupName = (g) => (g === 'S' ? 'solids' : g === 'T' ? 'stripes' : 'open table');
 const other = (g) => (g === 'S' ? 'T' : 'S');
 
@@ -192,7 +196,7 @@ export function judge(prev, outcome, balls) {
     if (objPotted.length) {
       s.visit = objPotted.length;
       s.bestRun[me] = Math.max(s.bestRun[me], s.visit);
-      report.title = `Good break: potted ${objPotted.join(', ')}`;
+      report.title = `Good break: potted ${ballsByGroup(objPotted)}`;
       report.detail = `${says(names[me], 'shoots', 'shoot')} again. The table is open.`;
     } else {
       s.turn = opp; s.visit = 0;
