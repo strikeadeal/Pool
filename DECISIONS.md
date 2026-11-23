@@ -158,13 +158,24 @@ The base is the **WPA World Standardised Rules for 8-ball** (2025 edition, verif
 - **Pass and play (2 players):** player names are editable. A handover banner names who's up, so the phone can be passed without anyone accidentally shooting.
 - **vs Computer** at Easy, Medium and Hard, with an aim error (σ) of 1.1°, 0.45° and 0.16°. The AI searches candidate shots: for each target ball and pocket it works out the ghost-ball aim, checks the path is clear, simulates with the real physics and scores the result for a pot, no foul and the next shot. Difficulty sets the aim error and the size of the search. It also handles breaks, ball in hand placement, calling the 8 and safeties.
   - Considered skipping the AI. It doubles as the full-game test harness, since AI-vs-AI games exercise the rules end to end in CI, and it gives a solo player a reason to open the app.
-  - **Measured over 12 AI-vs-AI games per level:**
+  - **It misses pots, not the table.** Play-testing showed fouls a person wouldn't make: Easy missing every ball, and Medium hitting the wrong ball first with ball in hand. Four changes, and the levels play about as hard as before:
+    - **Aim:** the aim error is drawn again when it would miss the aimed ball altogether or clip another one first. Easy still cuts balls badly, but it always hits the ball it chose. Kicks and banks keep their error as drawn.
+    - **Ball in hand:** it places the cue ball only where a legal ball is in a clear, straight line. If no straight pot exists, it sets up a clean, direct hit on a legal ball.
+    - **Snookers:** Medium and Hard now try kicks off a cushion when every direct hit would foul. Before, they fouled on purpose.
+    - **Calling the 8 on a safety:** it now calls the pocket the 8 is heading for. Before, it always called the bottom-left pocket. With the 8 in another jaw, potting it looked like an "uncalled" loss, so it fouled on purpose instead, turn after turn.
+    - **What changed (40 games per level, before → after):**
+      - Fouls: Easy 12% → 7%, Medium 9% → 6%, Hard 7% → 4%.
+      - Missing every ball: 55 → 14 across all levels. What's left is mostly missed kicks, plus a few soft shots that stop short.
+      - Wrong ball first: 105 → 29. What's left is genuine snookers and missed kicks.
+      - Fouls with ball in hand are now only scratches and no-cushion fouls.
+      - Balls potted per shot are unchanged (0.33, 0.54 and 0.79). Head-to-head results are within noise: Medium beat Easy 33/40 (36/40 before), Hard beat Easy 37/40 (36/40) and Hard beat Medium 34/40 (32/40).
+  - **Measured over 40 AI-vs-AI games per level:**
 
     | Level | Shots per game | Foul rate |
     |---|---|---|
-    | Hard vs Hard | 14 | 5% |
-    | Medium vs Medium | 20 | 10% |
-    | Easy vs Easy | 38 | 13% |
+    | Hard vs Hard | 12 | 4% |
+    | Medium vs Medium | 20 | 6% |
+    | Easy vs Easy | 36 | 7% |
 
     A test requires Hard to beat Easy in at least 70% of games.
   - It decides in a median of 4–18 ms and at most about 230 ms on a desktop CPU. It is time-sliced, so the UI never blocks.

@@ -87,7 +87,7 @@ One-time settings, already done:
 Needs Node 20 or later. There are no dependencies to install.
 
 ```sh
-npm test          # 43 tests: physics, rules, storage, complete computer-vs-computer games
+npm test          # 45 tests: physics, rules, storage, complete computer-vs-computer games
 npm start         # builds to dist/ and serves it at http://localhost:8080/pool/ (like GitHub Pages)
 ```
 

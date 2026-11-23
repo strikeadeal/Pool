@@ -1,7 +1,7 @@
 // Computer opponent. Candidate shots come from ghost-ball geometry; the best few are
 // simulated with the real physics and judged with the real rules, then executed with
 // level-dependent aim and pace error. think() is a generator so the UI can time-slice it.
-import { R, L, W, N, HEAD_X, FOOT_X, TABLE, simulate, ghostAim, canPlace, rng } from './physics.js';
+import { R, L, W, N, HEAD_X, FOOT_X, TABLE, simulate, ghostAim, canPlace, predict, rng } from './physics.js';
 import { judge, legalTargets, onEight } from './rules.js';
 import { FEEL } from './feel.js';
 
@@ -93,11 +93,14 @@ function scoreResult(state, sim, me, lvl) {
   return score;
 }
 
+// Simulate and score a shot; returns [score, called]. called = 'drop' (a safety or kick while on
+// the 8) calls the pocket the 8 would drop in, as a player calls the pocket they're playing for.
+// Calling a fixed pocket made the computer foul on purpose rather than pot the 8 "uncalled".
 function* evaluate(state, shot, called, me, lvl) {
-  const s = { ...state, called };
   const sim = simulate(state.balls, shot, { record: false });
+  if (called === 'drop') called = sim.outcome().pocketed.find((q) => q.b === 8)?.p ?? 0;
   yield;
-  return scoreResult(s, sim, me, lvl);
+  return [scoreResult({ ...state, called }, sim, me, lvl), called];
 }
 
 // Choose where to put the cue ball with ball in hand.
@@ -105,6 +108,9 @@ function placeCueBall(state, lvl, r) {
   const kitchen = state.ballInHand === 'kitchen';
   const balls = state.balls;
   const ok = (x, y) => canPlace(balls, 0, x, y, kitchen);
+  // Never leave yourself snookered: some legal ball must be in a straight, clear line.
+  const targets = legalTargets(state);
+  const open = (x, y) => targets.some((t) => clear(balls, x, y, balls.x[t], balls.y[t], 0, t));
   if (state.phase === 'break') {
     const y = W / 2 + (r() - 0.5) * 0.3;
     return ok(HEAD_X - 0.12, y) ? [HEAD_X - 0.12, y] : null;
@@ -112,12 +118,12 @@ function placeCueBall(state, lvl, r) {
   if (lvl.candidates <= 3 && r() < 0.5) {
     for (let k = 0; k < 40; k++) {
       const x = R + r() * ((kitchen ? HEAD_X : L) - 2 * R), y = R + r() * (W - 2 * R);
-      if (ok(x, y)) return [x, y];
+      if (ok(x, y) && open(x, y)) return [x, y];
     }
   }
   // Put the cue ball behind an object ball on its line to a pocket: a straight, short pot.
   let best = null, bestQ = -1;
-  for (const t of legalTargets(state)) {
+  for (const t of targets) {
     for (let p = 0; p < 6; p++) {
       const [tx, ty] = pocketTarget(p);
       let ox = tx - balls.x[t], oy = ty - balls.y[t];
@@ -135,7 +141,17 @@ function placeCueBall(state, lvl, r) {
       }
     }
   }
-  return best;
+  if (best) return best;
+  // No straight pot anywhere: at least set up a clean, direct hit on a legal ball.
+  for (const back of [0.2, 0.35, 0.55]) {
+    for (const t of targets) {
+      for (let k = 0; k < 16; k++) {
+        const a = (k / 16) * Math.PI * 2, x = balls.x[t] + Math.cos(a) * (2 * R + back), y = balls.y[t] + Math.sin(a) * (2 * R + back);
+        if (ok(x, y) && clear(balls, x, y, balls.x[t], balls.y[t], 0, t)) return [x, y];
+      }
+    }
+  }
+  return null;
 }
 
 // Returns { place: [x,y]|null, shot, called }
@@ -178,36 +194,47 @@ export function* think(state, level, seed) {
     for (const v of variants) {
       const shot = { dx: c.dx, dy: c.dy, speed: Math.min(MAX_V, base * v.k), a: 0, b: v.b };
       const called = eight || c.target === 8 ? c.pocket : null;
-      const sc = yield* evaluate(work, shot, called, me, lvl);
+      const [sc] = yield* evaluate(work, shot, called, me, lvl);
       const total = sc + c.quality * 10;
       if (total > bestScore) { bestScore = total; best = { shot, called }; }
     }
   }
-  // No good pot: look for a legal safety or kick by sampling directions.
+  // No good pot: look for a legal safety, or a kick by sampling directions.
   if (!best || bestScore < 20) {
-    const targets = legalTargets(work);
-    const tries = [];
-    for (const t of targets) {
-      let dx = b.x[t] - b.x[0], dy = b.y[t] - b.y[0]; const l = Math.hypot(dx, dy); dx /= l; dy /= l;
-      for (const sp of [0.9, 1.6, 2.6]) tries.push({ dx, dy, speed: sp });
-    }
-    if (!tries.length || !lvl.safety) {
-      for (let k = 0; k < 36; k++) {
-        const a = (k / 36) * Math.PI * 2;
-        tries.push({ dx: Math.cos(a), dy: Math.sin(a), speed: 2.2 });
+    const tryAll = function* (tries) {
+      for (const t of tries) {
+        const shot = { ...t, a: 0, b: 0 };
+        const [sc, called] = yield* evaluate(work, shot, eight ? 'drop' : null, me, lvl);
+        if (sc > bestScore) { bestScore = sc; best = { shot, called }; }
       }
+    };
+    const direct = [];
+    for (const t of legalTargets(work)) {
+      let dx = b.x[t] - b.x[0], dy = b.y[t] - b.y[0]; const l = Math.hypot(dx, dy); dx /= l; dy /= l;
+      for (const sp of [0.9, 1.6, 2.6]) direct.push({ dx, dy, speed: sp });
     }
-    for (const t of tries) {
-      const shot = { ...t, a: 0, b: 0 };
-      const called = eight ? 0 : null;
-      const sc = yield* evaluate(work, shot, called, me, lvl);
-      if (sc > bestScore) { bestScore = sc; best = { shot, called }; }
+    yield* tryAll(direct);
+    // A foul scores -60 or less, a legal miss -30 or more. Easy always samples; the others only when
+    // every direct hit fouls (snookered), so they kick off a cushion rather than knowingly foul.
+    if (!lvl.safety || bestScore < -45) {
+      const sweep = [];
+      for (let k = 0; k < 36; k++) { const a = (k / 36) * Math.PI * 2; sweep.push({ dx: Math.cos(a), dy: Math.sin(a), speed: 2.2 }); }
+      yield* tryAll(sweep);
     }
     if (!best) best = { shot: { dx: 1, dy: 0, speed: 2, a: 0, b: 0 }, called: eight ? 0 : null };
   }
-  // Execute with human-like error.
-  const err = gauss(r) * lvl.aimSigmaDeg * (Math.PI / 180);
-  const [dx, dy] = rotate(best.shot.dx, best.shot.dy, err);
+  // Execute with human-like error. A player still hits the ball they aim at, though: an error that
+  // would miss it altogether or clip another ball first is drawn again. The computer misses pots,
+  // not the table.
+  // A kick or bank (cushion first) keeps its error as drawn. If no draw keeps the aimed ball (a very
+  // thin cut), the shot goes as planned.
+  const aimed = predict(b, best.shot.dx, best.shot.dy);
+  let dx = best.shot.dx, dy = best.shot.dy;
+  for (let k = 0; k < 20; k++) {
+    const [ex, ey] = rotate(best.shot.dx, best.shot.dy, gauss(r) * lvl.aimSigmaDeg * (Math.PI / 180));
+    const pr = aimed.kind === 'ball' ? predict(b, ex, ey) : null;
+    if (!pr || (pr.kind === 'ball' && pr.ball === aimed.ball)) { dx = ex; dy = ey; break; }
+  }
   const speed = Math.min(MAX_V, Math.max(0.2, best.shot.speed * (1 + gauss(r) * lvl.paceErr)));
   return { place, called: best.called, shot: { dx, dy, speed, a: best.shot.a, b: best.shot.b } };
 }
