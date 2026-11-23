@@ -27,7 +27,9 @@ test('break: pot = legal, breaker continues, table stays open', () => {
   assert.equal(state.phase, 'play'); assert.equal(state.turn, 0);
   assert.deepEqual(state.groups, [null, null]);
   assert.equal(state.ballInHand, null);
-  assert.equal(report.title, 'Good break: potted 3, 9');   // names the balls, not just a count
+  assert.equal(report.title, 'Good break: potted solid 3 and stripe 9');   // names the balls and their groups
+  assert.equal(Rl.ballsByGroup([1, 2, 11]), 'solids 1, 2 and stripe 11');
+  assert.equal(Rl.ballsByGroup([10, 12]), 'stripes 10, 12');
 });
 
 test('break: four balls to a cushion without a pot is legal; turn passes', () => {

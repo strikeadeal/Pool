@@ -104,7 +104,7 @@ button { font: inherit; color: inherit; touch-action: manipulation; }
   background: radial-gradient(circle at 36% 30%, #ffffff, #f2ecdc 40%, #c8bfa8 85%, #9d9580); box-shadow: 0 2px 4px rgba(0,0,0,.5); }
 #spin-btn .dot { position: absolute; left: 50%; top: 50%; width: 9px; height: 9px; margin: -4.5px 0 0 -4.5px; border-radius: 50%; background: #d8342a;
   box-shadow: 0 0 0 2px rgba(216,52,42,.25); }
-#controls.locked { opacity: .55; pointer-events: none; }
+#controls.locked, #assist.locked { opacity: .55; }   /* taps still land here, not on the table (a table tap fast-forwards) */
 #controls.cpu > * { opacity: .35; }
 
 /* ---------- Assisted aiming ---------- */
