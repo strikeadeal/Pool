@@ -162,7 +162,7 @@ function buildScene() {
     scene.under.push((r) => {
       for (let p = 0; p < 6; p++) {
         const [hx, hy, hr] = holeCentre(p);
-        if (p === game.called) { r.ring(hx, hy, hr + 0.014, 0.006, [0.85, 0.71, 0.35, 0.95]); r.disc(hx, hy, hr * 0.35, [0.85, 0.71, 0.35, 0.9]); }
+        if (p === game.called) { r.ring(hx, hy, hr + 0.014, 0.006, [0.96, 0.75, 0.09, 0.95]); r.disc(hx, hy, hr * 0.35, [0.96, 0.75, 0.09, 0.9]); }
         else r.ring(hx, hy, hr + 0.01, 0.002, [1, 1, 1, 0.22]);
       }
     });
@@ -177,7 +177,7 @@ function buildScene() {
     const pull = 0.008 + (powerLive ? power : cpu?.pull || 0) * 0.24;
     scene.cue = { x: cx - dx * (R + pull), y: cy - dy * (R + pull), dx, dy, a: 1 };
     if (game.ballInHand && (human || cpu)) {
-      scene.over.push((r) => r.ring(cx, cy, R * (grabbing ? 1.9 : 1.6), 0.003, [0.85, 0.71, 0.35, grabbing ? 0.95 : 0.7]));
+      scene.over.push((r) => r.ring(cx, cy, R * (grabbing ? 1.9 : 1.6), 0.003, [0.96, 0.75, 0.09, grabbing ? 0.95 : 0.7]));
     }
   }
   if (pb) {

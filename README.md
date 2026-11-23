@@ -116,6 +116,7 @@ npm start         # builds to dist/ and serves it at http://localhost:8080/pool/
 | `src/js/input.js` | Touch controls: aim, power, roller, spin, ball in hand |
 | `src/js/feel.js` | **Every control feel value, in one commented file** |
 | `src/js/feedback.js` | Sound (recorded hits and rolling, synthesised fallback) and haptics |
+| `src/fonts/` | Sofia Sans and Sofia Sans Extra Condensed (latin subsets, SIL Open Font Licence in `OFL.txt`), bundled so the look works offline |
 | `src/sounds/` | 14 short WAV clips cut from CC0 recordings by `tools/sounds.mjs` (see Sound credits) |
 | `src/js/main.js` | Screens, turns, playback, saving, updates |
 | `tools/build.mjs` | Copies `src/` to `dist/` and stamps a version derived from the content into the app and the service worker's precache list (SHA-256, with SRI) |
@@ -159,7 +160,7 @@ The menu tick is synthesised.
 3. **A "pro" mode and deeper stats:** no guide past first contact, and pot percentage by distance and cut angle.
 4. **Ball-ball throw and cue-ball squirt**, as an optional "advanced physics" setting.
 5. **9-ball**, which reuses the physics, renderer and most of the rules plumbing.
-6. **A cloth colour setting** (for example tournament blue). The cloth colour is one constant, painted once.
+6. **A cloth colour setting** (for example classic green). The cloth colours are a handful of constants in `paintScene`, painted once, plus `FELT_RGB` for the ball reflections.
 
 ## Deliberately left out
 
