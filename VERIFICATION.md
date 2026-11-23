@@ -7,14 +7,14 @@
 
 Treat every iOS-specific behaviour (standalone viewport, safe areas, haptics, audio session, ProMotion, storage durability) as **untested until you try it on your phone**.
 
-## 1. Automated tests (Node 22, `npm test`): 43 pass
+## 1. Automated tests (Node 22, `npm test`): 45 pass
 
 | Suite | What it proves |
 |---|---|
 | `physics.test.mjs` (15) | **Determinism:** bit-identical results whether the sim runs in one go or in chunks, plus a golden checksum of a full break. **Collisions and spin:** head-on stun transfer; cut shots following the 90° rule; **the guide line matching the simulated object-ball direction to < 0.005° over 40 cuts**; draw, follow and stun behaviour. **Cushions:** rebound angle and restitution; running versus reverse english; a rolling ball's rebound speed. **Pockets:** all 6 pockets at 3 speeds; jaw rejection; a rail roll past the side pocket. **Robustness:** 300 random shots ending with no ball off the cloth and no overlaps; every full-power break legal over 25 racks. |
 | `rules.test.mjs` (20) | **Break:** legal and illegal breaks with the three options; scratch on the break; 8 on the break, with and without a scratch. **Open table:** group assignment, including the first ball to drop deciding; hitting the 8 first on an open table. **Fouls:** wrong ball first, no cushion, no hit, scratch; balls potted on a foul stay down. **Turns and the 8:** turn passing; winning on the 8; losing four ways (wrong pocket, uncalled, on a foul, early); a scratch on the 8 being only a foul. **Calling off:** the 8 in any pocket wins, early or on a foul still loses; calling defaults on, and a saved game without the field still calls. **Also:** ball-in-hand limits, practice mode, the VoiceOver table summary. |
 | `storage.test.mjs` (5) | Versioned keys and revisions. A stale tab can't overwrite newer data. Older code never writes over a newer schema. Read-modify-write stats don't lose records across tabs. Corrupt data falls back. |
-| `game.test.mjs` (3) | Six complete computer-vs-computer games, plus one with calling off, through the real physics and rules, with state invariants checked every shot. **Hard beats Easy in at least 70% of 10 games.** |
+| `game.test.mjs` (5) | Six complete computer-vs-computer games, plus one with calling off, through the real physics and rules, with state invariants checked every shot. **Hard beats Easy in at least 70% of 10 games.** With ball in hand, Easy and Medium never miss everything or hit the wrong ball first (24 games). On the 8, the computer calls the pocket the 8 is heading for. |
 
 ## 2. Browser checks (Chromium 153 headless, SwiftShader WebGL, Playwright 1.63): 25 pass
 

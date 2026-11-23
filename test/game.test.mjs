@@ -24,7 +24,7 @@ export function playGame(seed, levels, maxShots = 400, callEight = true) {
     if (state.phase !== 'over' && state.phase !== 'decision') assert.equal(state.balls.on[0], 1, 'cue ball is on the table between shots');
     if (state.groups[0]) assert.notEqual(state.groups[0], state.groups[1]);
     if (report.fouls.length && state.phase === 'play') assert.equal(state.ballInHand, 'anywhere');
-    log.push({ shooter: s.turn, fouls: report.fouls, potted: report.potted });
+    log.push({ shooter: s.turn, fouls: report.fouls, potted: report.potted, ballInHand: s.phase === 'play' && s.ballInHand === 'anywhere' });
     s = state;
   }
   return { s, log };
@@ -59,4 +59,29 @@ test('skill matters: Hard beats Easy far more often than not', () => {
   }
   assert.ok(games >= 8, `only ${games} games finished`);
   assert.ok(hard / games >= 0.7, `Hard won ${hard}/${games}`);
+});
+
+test('with ball in hand the computer always hits a legal ball first', () => {
+  // It places the cue ball itself, so missing everything or hitting the wrong ball first is never forced.
+  const bad = [];
+  for (let seed = 1; seed <= 12; seed++) {
+    for (const lvl of [1, 2]) {
+      const { log } = playGame(seed, [lvl, lvl]);
+      for (const e of log) if (e.ballInHand && e.fouls.some((f) => f === 'noHit' || f === 'wrongFirst')) bad.push(`L${lvl} seed ${seed}: ${e.fouls}`);
+    }
+  }
+  assert.deepEqual(bad, []);
+});
+
+test('on the 8, a safety or direct hit calls the pocket the 8 is heading for', () => {
+  // Only the 8 is left, frozen in the top-left jaw. Calling a fixed pocket made a direct hit an
+  // "uncalled" loss, so the computer fouled on purpose instead, turn after turn.
+  const s = Rl.newGame({ mode: 'cpu', players: [{ name: 'A', cpu: 1 }, { name: 'B', cpu: 1 }], seed: 5 });
+  for (let i = 1; i < 16; i++) s.balls.on[i] = i === 8 ? 1 : 0;
+  s.balls.x[8] = 0.0563; s.balls.y[8] = 0.9738;
+  s.phase = 'play'; s.groups = ['S', 'T']; s.turn = 1; s.ballInHand = 'anywhere';
+  for (const lvl of [1, 2, 3]) {
+    const d = decideSync(s, lvl, 77);
+    assert.equal(d.called, 5, `level ${lvl} called pocket ${d.called}, not top-left`);
+  }
 });
