@@ -16,7 +16,7 @@ Treat every iOS-specific behaviour (standalone viewport, safe areas, haptics, au
 | `storage.test.mjs` (5) | Versioned keys and revisions. A stale tab can't overwrite newer data. Older code never writes over a newer schema. Read-modify-write stats don't lose records across tabs. Corrupt data falls back. |
 | `game.test.mjs` (5) | Six complete computer-vs-computer games, plus one with calling off, through the real physics and rules, with state invariants checked every shot. **Hard beats Easy in at least 70% of 10 games.** With ball in hand, Easy and Medium never miss everything or hit the wrong ball first (24 games). On the 8, the computer calls the pocket the 8 is heading for. |
 
-## 2. Browser checks (Chromium 153 headless, SwiftShader WebGL, Playwright 1.63): 25 pass
+## 2. Browser checks (Chromium 153 headless, SwiftShader WebGL, Playwright 1.63): 26 pass
 
 Command: `node tools/e2e/verify.cjs chromium --shots`. It runs against the **production build served under `/pool/`** by a server that mimics GitHub Pages, including its 10-minute cache header.
 
@@ -32,6 +32,7 @@ Command: `node tools/e2e/verify.cjs chromium --shots`. It runs against the **pro
 | A complete pass-and-play game through the UI with **Any pocket** chosen at setup, ending on the game-over screen | pass |
 | A soft break is illegal, the incoming player gets the three WPA options, and re-racking hands the break over | pass |
 | A complete game against the Hard computer | pass |
+| **Restart** from the pause menu: the first tap only asks again; the second starts the same game from the break (same opponent level and 8-ball calling, even if Settings changed since) and isn't recorded in stats | pass |
 | Close and reopen mid-game resumes the same table, turn and shot number | pass |
 | **App killed mid-shot:** reopening shows exactly the result that shot would have produced | pass |
 | **Offline:** relaunch with the network off loads from the service worker, and a shot can be played | pass |

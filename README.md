@@ -32,7 +32,7 @@
 
 | Where | What |
 |---|---|
-| Top left | Menu: resume, how to play, settings, save and quit, concede (re-rack in practice) |
+| Top left | Menu: resume, restart (tap twice), how to play, settings, save and quit, concede (re-rack in practice) |
 | Top middle | The two players. The one to shoot has a gold border. Each has seven ball slots: empty until groups are set, then their balls, with a slot emptying as each is potted. The 8 appears when a player is on it. |
 | Between the players | The 8-ball button. It shows **Break** or **Open** until groups are set; tap it for a summary of the table. |
 | Top right | Spin: the cue ball shows where the cue will hit. |
@@ -96,7 +96,7 @@ npm start         # builds to dist/ and serves it at http://localhost:8080/pool/
 - **Browser tests** (optional; needs Playwright, `npm i -D playwright && npx playwright install chromium webkit`):
 
   ```sh
-  node tools/e2e/verify.cjs chromium --shots   # 25 checks; screenshots into docs/screenshots
+  node tools/e2e/verify.cjs chromium --shots   # 26 checks; screenshots into docs/screenshots
   node tools/e2e/verify.cjs webkit             # the same checks in WebKit
   ```
 

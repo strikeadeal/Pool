@@ -528,6 +528,7 @@ function updateHud(extraPotted) {
   $('status-cap').textContent = game.mode === 'practice' ? '' : game.phase === 'break' ? 'Break' : !game.groups[0] ? 'Open' : '';
   $('p-rerack').hidden = game.mode !== 'practice';
   $('p-forfeit').hidden = game.mode === 'practice';
+  $('p-restart').hidden = game.mode === 'practice';
 }
 
 function updateControls() {
@@ -644,14 +645,19 @@ function hideOverlay(id) {
   if (!overlay) { showTutorial(); requestRender(); }
 }
 
-function newGameFor(mode) {
+let restartArmed = 0;
+function disarmRestart() { clearTimeout(restartArmed); restartArmed = 0; $('p-restart').textContent = 'Restart game'; }
+
+// from: a game to copy the players, computer level and 8-ball calling from (Restart), instead of setup.
+function newGameFor(mode, from) {
   const seed = crypto.getRandomValues(new Uint32Array(1))[0] || 1;
+  if (from) return Rules.newGame({ mode, players: from.players, seed, callEight: from.callEight !== false });
   if (mode === 'practice') return Rules.newGame({ mode, players: [{ name: settings.solo || 'You' }, { name: '' }], seed });
   if (mode === 'cpu') return Rules.newGame({ mode, players: [{ name: settings.solo || 'You' }, { name: 'Computer', cpu: settings.level }], seed, callEight: settings.eight !== 'any' });
   return Rules.newGame({ mode, players: settings.names.map((n, i) => ({ name: n || `Player ${i + 1}` })), seed, callEight: settings.eight !== 'any' });
 }
-function startGame(mode, breaker = 0) {
-  game = newGameFor(mode);
+function startGame(mode, breaker = 0, from = null) {
+  game = newGameFor(mode, from);
   if (breaker) { game.turn = breaker; game.breaker = breaker; }
   pb = null; cpu = null; spin = { a: 0, b: 0 }; calledManual = false;
   overlayStack = []; if (overlay) { $(overlay).hidden = true; overlay = null; }
@@ -878,11 +884,20 @@ function wire() {
     startGame(mode);
   };
   $('app').addEventListener('pointerdown', () => { if (screenName === 'game') hideBanner(); });   // any touch clears the message
-  $('menu-btn').onclick = () => { play('tick', 0.3); openSheet('pause'); };
+  $('menu-btn').onclick = () => { play('tick', 0.3); disarmRestart(); openSheet('pause'); };
   $('status-btn').onclick = () => { if (game) { const t = Rules.describe(game); announce(t); banner('Table status', t, '', 4500); } };
   $('p-resume').onclick = () => hideOverlay();
   $('p-quit').onclick = () => { overlayStack = []; hideOverlay(); saveGame(); showScreen('title'); };
   $('p-rerack').onclick = () => { overlayStack = []; hideOverlay(); startGame('practice'); };
+  // Restart: the same game from the break. It takes a second tap, so a stray one can't throw a game away.
+  // Not recorded in stats, like quitting to the menu and starting another.
+  $('p-restart').onclick = () => {
+    if (!game) return;
+    if (!restartArmed) { restartArmed = setTimeout(disarmRestart, 3000); $('p-restart').textContent = 'Tap again to restart'; return; }
+    disarmRestart();
+    setRoll(0); input?.cancel(); $('thinking').hidden = true;   // a shot or the computer's turn may be under way
+    startGame(game.mode, game.breaker || 0, game);
+  };
   $('p-forfeit').onclick = () => {
     if (!game || pb) return;
     overlayStack = []; hideOverlay();
