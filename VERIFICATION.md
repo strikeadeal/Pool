@@ -39,6 +39,8 @@ Command: `node tools/e2e/verify.cjs chromium --shots`. It runs against the **pro
 | **Update mid-game:** the new version waits, with no reload and the "update ready" pill shown | pass |
 | **Update at the menu:** applies and reloads, and the saved game continues unchanged | pass |
 | **Update found at launch** (before any input) installs immediately | pass |
+| **Update while the menu is in use:** the new version waits, and the sheet just opened stays open. Before the fix the page reloaded under the player and threw the tap away. | pass |
+| **Fonts landing late** (every cold launch): no button on any screen moves when the web fonts replace the fallback, at standard, SE and 568×320. Before the fix, buttons moved by up to 198 px. | 3/3 |
 | JS time per frame during a break with **4× CPU throttling** (SE-sized screen) | median 0.8 ms, 95th percentile 7.7 ms, worst 24.3 ms (one frame) |
 | No animation frames while idle | 0 frames in 1.5 s |
 | Console errors or uncaught exceptions across all of the above | none |

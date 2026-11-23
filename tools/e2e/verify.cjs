@@ -357,6 +357,19 @@ async function playToEnd(page, maxTurns = 300) {
       await page.click('#t-continue'); await page.waitForTimeout(400);
       const gameAfter = await B(page, () => JSON.stringify(window.__baize.game.balls) + window.__baize.game.shotNo);
       ok('update applies at the menu; the saved game continues after it', v2 !== v1 && v2.endsWith('u2') && gameBefore === gameAfter, `${v1} → ${v2}`);
+      // an update landing while someone is using the menu must not reload under them (it used to throw away their tap)
+      await page.click('#menu-btn'); await page.click('#p-quit'); await page.waitForTimeout(200);
+      build('u2b');
+      await page.click('[data-go="setup-cpu"]');
+      let menuState;
+      try {
+        await B(page, () => window.__swReg.update());
+        await page.waitForFunction(() => window.__swReg.waiting, null, { timeout: 20000 });
+        await page.waitForTimeout(600);
+        menuState = await B(page, () => `${window.__baize.version} ${window.__baize.overlay}`);
+      } catch { menuState = 'the page reloaded under the open sheet'; await page.waitForTimeout(1500); }
+      ok('update arriving while the menu is in use waits (the sheet just opened stays open)', menuState === `${v2} setup`, menuState);
+      if (menuState.endsWith('setup')) await page.click('#setup [data-back]');
       // update at launch applies straight away (no input yet)
       build('u3');
       await page.reload(); await page.waitForTimeout(500);
@@ -384,6 +397,34 @@ async function playToEnd(page, maxTurns = 300) {
       const idle = await B(page, async () => { const n = window.__baize.frameMs.length; await new Promise((r) => setTimeout(r, 1500)); return window.__baize.frameMs.length - n; });
       ok('no animation loop while nothing moves', idle <= 1, `${idle} frames in 1.5 s idle`);
       await context.close();
+    }
+
+    // ---------- 8. web fonts arriving after the first paint (every cold launch) must not move any button ----------
+    {
+      const boxes = async (fonts, w, h) => {
+        const context = await browser.newContext({ viewport: { width: w, height: h }, hasTouch: true, isMobile: engineName === 'chromium', serviceWorkers: 'block' });
+        const page = await context.newPage();   // not newPage(): the blocked font requests would count as console errors
+        if (!fonts) await page.route('**/*.woff2', (r) => r.abort());
+        await page.goto(URL); await page.waitForTimeout(600);
+        const out = [];
+        const snap = async (s) => { await B(page, () => document.fonts.ready); out.push(...await B(page, (s) => [...document.querySelectorAll(s + ' button')].filter((e) => !e.closest('[hidden]'))
+          .map((e) => { const r = e.getBoundingClientRect(); return [`${s} ${e.id || e.textContent.trim()}`, r.x, r.y, r.width, r.height]; }), s)); };
+        await snap('#title');
+        for (const [go, s] of [['setup-cpu', '#setup'], ['setup-pvp', '#setup'], ['help', '#help'], ['settings', '#settings'], ['stats', '#stats']]) {
+          await page.click(`[data-go="${go}"]`); await snap(s); await page.click(`${s} [data-back]`);
+        }
+        await page.click('[data-go="practice"]'); await page.waitForTimeout(300); await snap('#hud'); await snap('#controls');
+        await page.click('#menu-btn'); await snap('#pause'); await page.click('#p-resume');
+        await page.click('#spin-btn'); await snap('#spin');
+        const faces = await B(page, () => [...document.fonts].filter((f) => f.status === 'loaded').length);
+        await context.close(); return { out, faces };
+      };
+      for (const [name, w, h] of [['standard', 852, 393], ['SE', 667, 375], ['SE 1st gen', 568, 320]]) {
+        const a = await boxes(true, w, h), f = await boxes(false, w, h);
+        const moved = a.out.map((x, i) => [x[0], Math.max(...[1, 2, 3, 4].map((k) => Math.abs(x[k] - (f.out[i]?.[k] ?? 1e9))))]).filter(([, d]) => d > 2);
+        ok(`fonts landing late move no button, ${name}`, a.faces > 0 && f.faces === 0 && a.out.length === f.out.length && !moved.length,
+          moved.length ? moved.map(([n, d]) => `${n} ${Math.round(d)}px`).join(', ') : `${a.out.length} buttons, ${a.faces} faces vs fallback`);
+      }
     }
   } finally {
     await browser.close();

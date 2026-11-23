@@ -6,7 +6,8 @@ Each entry: what I chose, what I considered, why. Written before the code and ke
 
 - **Name: Baize.** Baize is the cloth on a pool table. It's short, fits under an icon, and isn't used by the reference game. Considered: Felt, Chalk, Corner Pocket.
 - **Look:** tournament pool as it appears on TV. Tournament-blue cloth (not the bright green of the reference), matte black rails, white diamond sights, black pockets, and two lamps baked into the lighting. The UI is broadcast graphics: a white scorebug with angled ends, white lower-third banners and dialogs with a navy title bar, condensed capitals (Sofia Sans Extra Condensed, with Sofia Sans for body text), square corners, and one accent colour, the 1-ball's yellow, used for the player to shoot and the main action on each screen. This replaced an earlier dark-panel, brass-accent, serif look that users found generic.
-- **Fonts:** bundled in `src/fonts/` (latin subsets, about 100 KB, SIL Open Font Licence in `OFL.txt`) and precached, so the look is the same offline and nothing is fetched from a font CDN. `font-display: swap` means a cold first load can show the system font for a moment.
+- **Fonts:** bundled in `src/fonts/` (latin subsets, about 100 KB, SIL Open Font Licence in `OFL.txt`) and precached, so the look is the same offline and nothing is fetched from a font CDN. `font-display: swap` means a cold launch can show the system font for a moment.
+  - So no button's box may depend on its text: buttons have `min-width: 0`, and the grids that hold them use `minmax(0, 1fr)`. Otherwise the wider fallback text pushed the menu up to 200 px sideways (off screen on small phones), and it jumped back when the fonts landed, so a quick tap hit the wrong place or nothing. The e2e suite checks this at three sizes.
 - **Icon:** a cream cue ball on blue cloth with a black pocket and rail arc. It isn't an 8-ball, which keeps it clear of the reference game's logo.
 - **No monetisation imitation:** there are no coins, shop, XP, levels, unlocks or ads. Stats are records only.
 
@@ -20,6 +21,8 @@ Each entry: what I chose, what I considered, why. Written before the code and ke
 - **Build step exists only to make updates safe.** `tools/build.mjs` copies `src/` to `dist/` and computes a SHA-256 for every asset. It writes the file list and a content-derived version into `sw.js`.
   - Any change to any file changes `sw.js`, so installed copies always see the update.
   - Hand-bumping a version string was rejected: forgetting to bump it once means installed copies never update.
+- **When an update applies:** straight away only at launch before any touch, or on arriving at the menu or the game-over screen. One that finishes downloading while someone is using the app, menus included, waits and shows an "update ready" pill.
+  - It used to reload the moment the download finished whenever the menu was showing. That landed on taps: someone opened a sheet from the menu, the page reloaded and the sheet vanished, so the button seemed to need pressing twice. Every deploy did this once per phone.
 - **Deploy:** a GitHub Actions workflow runs the tests, builds and deploys `dist/` to Pages on every push to `main`.
   - One-time setting: Settings → Pages → Source: **GitHub Actions**.
 - **Subpath:** every URL is relative (`./`). That covers the manifest `start_url`/`scope`/`id`, service worker registration and scope, and module imports.

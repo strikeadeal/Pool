@@ -812,15 +812,18 @@ function registerSW() {
   }).catch(() => {});
   navigator.serviceWorker.addEventListener('controllerchange', () => { if (reloadingForUpdate) location.reload(); });
 }
+const launching = () => performance.now() - bootAt < 4000 && !interacted;
+// The download finishes at an arbitrary moment, so reload straight away only if nobody has touched the app yet.
+// Otherwise wait for the next arrival at the menu: a reload that lands while someone is using the menu throws away
+// what they just tapped (the sheet they opened vanishes), so they have to tap again.
 function onUpdateReady(worker) {
   pendingWorker = worker;
-  if (!applyUpdateIfSafe()) $('update-pill').hidden = false;
+  if (!(launching() && applyUpdateIfSafe())) $('update-pill').hidden = false;
 }
-// Apply only where it can't interrupt play: menus, game over, or right after launch before any input.
+// Apply only where it can't interrupt anything: arriving at the menu or game over, or right after launch before any input.
 function applyUpdateIfSafe() {
   if (!pendingWorker) return false;
-  const early = performance.now() - bootAt < 4000 && !interacted;
-  const safe = !pb && !cpu && (screenName === 'title' || game?.phase === 'over' || early);
+  const safe = !pb && !cpu && (screenName === 'title' || game?.phase === 'over' || launching());
   if (!safe) return false;
   saveGame(); flushRec();
   try { sessionStorage.setItem('baize.updated', '1'); } catch { /* ignore */ }
