@@ -3,7 +3,7 @@ import { L, W, FOOT_X, TABLE } from './physics.js';
 import { RAIL, CUSHION } from './layout.js';
 
 export const LAMPS = [[L * 0.27, W / 2, 1.05], [L * 0.73, W / 2, 1.05]];   // world x, y, height
-export const FELT_RGB = [0.05, 0.36, 0.38];
+export const FELT_RGB = [0.11, 0.35, 0.62];
 
 const HOLE_R = 0.058;
 export function holeCentre(p) {
@@ -63,7 +63,7 @@ export function paintScene(lay, dpr) {
   // Room
   const [tcx, tcy] = [lay.cx * dpr, lay.cy * dpr];
   const room = g.createRadialGradient(tcx, tcy, 0, tcx, tcy, Math.max(cw, ch) * 0.75);
-  room.addColorStop(0, '#1d2628'); room.addColorStop(0.45, '#0e1416'); room.addColorStop(1, '#040607');
+  room.addColorStop(0, '#1a2c4c'); room.addColorStop(0.45, '#0b1628'); room.addColorStop(1, '#03070f');
   g.fillStyle = room; g.fillRect(0, 0, cw, ch);
 
   const s = lay.s * dpr;
@@ -77,24 +77,24 @@ export function paintScene(lay, dpr) {
   g.save();
   g.shadowColor = 'rgba(0,0,0,0.75)'; g.shadowBlur = 40 * dpr; g.shadowOffsetX = 0; g.shadowOffsetY = 10 * dpr;
   roundRect(g, -RAIL, -RAIL, L + 2 * RAIL, W + 2 * RAIL, 0.05);
-  g.fillStyle = '#20130b'; g.fill();
+  g.fillStyle = '#000'; g.fill();
   g.restore();
 
-  // Wood rails
+  // Rails: matte black, like a TV tournament table
   g.save();
   roundRect(g, -RAIL, -RAIL, L + 2 * RAIL, W + 2 * RAIL, 0.05);
   g.clip();
   const wood = g.createLinearGradient(0, -RAIL, 0, W + RAIL);
-  wood.addColorStop(0, '#3a2215'); wood.addColorStop(0.5, '#2c180e'); wood.addColorStop(1, '#3a2215');
+  wood.addColorStop(0, '#1e2126'); wood.addColorStop(0.5, '#141619'); wood.addColorStop(1, '#1e2126');
   g.fillStyle = wood; g.fillRect(-RAIL, -RAIL, L + 2 * RAIL, W + 2 * RAIL);
-  // grain along each rail
+  // faint grain along each rail
   let seed = 7;
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
   const grain = (horizontal, c0, c1) => {
     for (let k = 0; k < 70; k++) {
       const t = c0 + rnd() * (c1 - c0);
       const amp = 0.0015 + rnd() * 0.004, wl = 0.2 + rnd() * 0.6, ph = rnd() * 6.28;
-      g.strokeStyle = rnd() < 0.5 ? `rgba(15,7,3,${0.15 + rnd() * 0.25})` : `rgba(120,70,40,${0.05 + rnd() * 0.12})`;
+      g.strokeStyle = rnd() < 0.5 ? `rgba(0,0,0,${(0.15 + rnd() * 0.25) * 0.25})` : `rgba(120,140,170,${(0.05 + rnd() * 0.12) * 0.25})`;
       g.lineWidth = 0.0006 + rnd() * 0.0022;
       g.beginPath();
       for (let u = -RAIL; u <= (horizontal ? L : W) + RAIL; u += 0.02) {
@@ -106,17 +106,17 @@ export function paintScene(lay, dpr) {
   };
   grain(true, -RAIL, -CUSHION); grain(true, W + CUSHION, W + RAIL);
   grain(false, -RAIL, -CUSHION); grain(false, L + CUSHION, L + RAIL);
-  // lamp light on the wood
+  // lamp light on the rails
   g.globalCompositeOperation = 'lighter';
   for (const [lx, ly] of LAMPS) {
     const lg = g.createRadialGradient(lx, ly, 0, lx, ly, 0.9);
-    lg.addColorStop(0, 'rgba(120,80,45,0.30)'); lg.addColorStop(1, 'rgba(120,80,45,0)');
+    lg.addColorStop(0, 'rgba(110,135,175,0.20)'); lg.addColorStop(1, 'rgba(110,135,175,0)');
     g.fillStyle = lg; g.fillRect(-RAIL, -RAIL, L + 2 * RAIL, W + 2 * RAIL);
   }
   g.globalCompositeOperation = 'source-over';
   // bevels
   g.lineWidth = 0.004;
-  g.strokeStyle = 'rgba(255,210,160,0.16)';
+  g.strokeStyle = 'rgba(200,220,255,0.16)';
   roundRect(g, -RAIL + 0.004, -RAIL + 0.004, L + 2 * RAIL - 0.008, W + 2 * RAIL - 0.008, 0.046); g.stroke();
   g.strokeStyle = 'rgba(0,0,0,0.55)'; g.lineWidth = 0.006;
   roundRect(g, -RAIL, -RAIL, L + 2 * RAIL, W + 2 * RAIL, 0.05); g.stroke();
@@ -124,12 +124,12 @@ export function paintScene(lay, dpr) {
 
   // Cushion rubber strip (cloth-covered)
   // each strip shaded across its width: lit at the nose, falling into shadow at the rail
-  g.fillStyle = '#073337'; g.fillRect(-CUSHION, -CUSHION, L + 2 * CUSHION, W + 2 * CUSHION);
+  g.fillStyle = '#0f3463'; g.fillRect(-CUSHION, -CUSHION, L + 2 * CUSHION, W + 2 * CUSHION);
   for (const [x0, y0, x1, y1, w, h] of [
     [0, 0, 0, -CUSHION, L, -CUSHION], [0, W, 0, W + CUSHION, L, CUSHION],
     [0, 0, -CUSHION, 0, -CUSHION, W], [L, 0, L + CUSHION, 0, CUSHION, W]]) {
     const cg = g.createLinearGradient(x0, y0, x1, y1);
-    cg.addColorStop(0, '#11666b'); cg.addColorStop(0.35, '#0b4f53'); cg.addColorStop(1, '#062b2e');
+    cg.addColorStop(0, '#2563ab'); cg.addColorStop(0.35, '#1c5192'); cg.addColorStop(1, '#0f3363');
     g.fillStyle = cg;
     g.fillRect(x0, y0, w, h);
   }
@@ -141,12 +141,12 @@ export function paintScene(lay, dpr) {
   feltPath(g);
   g.clip('nonzero');
   const felt = g.createRadialGradient(L / 2, W / 2, 0.1, L / 2, W / 2, L * 0.62);
-  felt.addColorStop(0, '#11686d'); felt.addColorStop(0.6, '#0d5a5f'); felt.addColorStop(1, '#083f43');
+  felt.addColorStop(0, '#2366b2'); felt.addColorStop(0.6, '#1d599f'); felt.addColorStop(1, '#154580');
   g.fillStyle = felt; g.fillRect(-0.2, -0.2, L + 0.4, W + 0.4);
   g.globalCompositeOperation = 'lighter';
   for (const [lx, ly] of LAMPS) {
     const lg = g.createRadialGradient(lx, ly, 0, lx, ly, 0.75);
-    lg.addColorStop(0, 'rgba(40,110,105,0.30)'); lg.addColorStop(0.5, 'rgba(30,90,90,0.12)'); lg.addColorStop(1, 'rgba(30,90,90,0)');
+    lg.addColorStop(0, 'rgba(70,130,210,0.20)'); lg.addColorStop(0.5, 'rgba(50,110,190,0.08)'); lg.addColorStop(1, 'rgba(50,110,190,0)');
     g.fillStyle = lg; g.fillRect(-0.2, -0.2, L + 0.4, W + 0.4);
   }
   g.globalCompositeOperation = 'source-over';
@@ -160,7 +160,7 @@ export function paintScene(lay, dpr) {
   }
   // cloth weave noise, applied in device space
   g.setTransform(1, 0, 0, 1, 0, 0);
-  g.fillStyle = g.createPattern(makeNoise(128, 22), 'repeat');
+  g.fillStyle = g.createPattern(makeNoise(128, 16), 'repeat');
   g.fillRect(0, 0, cw, ch);
   world();
   // cloth mark near the head rail and the foot spot
@@ -173,7 +173,7 @@ export function paintScene(lay, dpr) {
   g.lineCap = 'round';
   for (let k = 0; k < S.length / 9; k++) {
     const o = k * 9;
-    g.strokeStyle = k < 6 ? 'rgba(90,190,185,0.35)' : 'rgba(70,160,155,0.28)';
+    g.strokeStyle = k < 6 ? 'rgba(150,200,255,0.42)' : 'rgba(130,180,240,0.32)';
     g.lineWidth = 0.0035;
     g.beginPath(); g.moveTo(S[o], S[o + 1]); g.lineTo(S[o + 2], S[o + 3]); g.stroke();
   }
@@ -181,10 +181,10 @@ export function paintScene(lay, dpr) {
   // Pockets
   for (let p = 0; p < 6; p++) {
     const [hx, hy, hr] = holeCentre(p);
-    // leather liner
-    g.fillStyle = '#120d0a';
+    // liner
+    g.fillStyle = '#0b0c0e';
     g.beginPath(); g.arc(hx, hy, hr + 0.014, 0, Math.PI * 2); g.fill();
-    g.strokeStyle = 'rgba(255,220,180,0.10)'; g.lineWidth = 0.003;
+    g.strokeStyle = 'rgba(200,220,255,0.10)'; g.lineWidth = 0.003;
     g.beginPath(); g.arc(hx, hy, hr + 0.012, 0, Math.PI * 2); g.stroke();
     const hole = g.createRadialGradient(hx, hy, hr * 0.2, hx, hy, hr);
     hole.addColorStop(0, '#000'); hole.addColorStop(0.75, '#020202'); hole.addColorStop(1, '#151515');
@@ -206,7 +206,7 @@ export function paintScene(lay, dpr) {
   for (const [x, y, rot] of diamonds) {
     const hw = rot ? 0.008 : 0.0045, hh = rot ? 0.0045 : 0.008;
     const dg = g.createLinearGradient(x - hw, y - hh, x + hw, y + hh);
-    dg.addColorStop(0, '#fbf6ea'); dg.addColorStop(0.5, '#d9d2c0'); dg.addColorStop(1, '#a9a191');
+    dg.addColorStop(0, '#ffffff'); dg.addColorStop(0.5, '#e8ebf1'); dg.addColorStop(1, '#b9c0cc');
     g.fillStyle = dg;
     g.beginPath(); g.moveTo(x - hw, y); g.lineTo(x, y - hh); g.lineTo(x + hw, y); g.lineTo(x, y + hh); g.closePath(); g.fill();
     g.strokeStyle = 'rgba(0,0,0,0.5)'; g.lineWidth = 0.0012; g.stroke();
@@ -214,7 +214,7 @@ export function paintScene(lay, dpr) {
   // Vignette over everything
   g.setTransform(1, 0, 0, 1, 0, 0);
   const vg = g.createRadialGradient(tcx, tcy, Math.min(cw, ch) * 0.35, tcx, tcy, Math.max(cw, ch) * 0.8);
-  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.45)');
+  vg.addColorStop(0, 'rgba(0,0,0,0)'); vg.addColorStop(1, 'rgba(0,0,0,0.5)');
   g.fillStyle = vg; g.fillRect(0, 0, cw, ch);
   return c;
 }

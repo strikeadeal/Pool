@@ -5,8 +5,9 @@ Each entry: what I chose, what I considered, why. Written before the code and ke
 ## 0. Identity
 
 - **Name: Baize.** Baize is the cloth on a pool table. It's short, fits under an icon, and isn't used by the reference game. Considered: Felt, Chalk, Corner Pocket.
-- **Look:** a late-night club table. Petrol-teal cloth (not the bright green of the reference), dark walnut rails, ivory diamond sights, black leather pockets, and two warm lamps baked into the lighting. The UI is dark panels with one brass accent colour.
-- **Icon:** a cream cue ball on teal cloth with a brass pocket arc. It isn't an 8-ball, which keeps it clear of the reference game's logo.
+- **Look:** tournament pool as it appears on TV. Tournament-blue cloth (not the bright green of the reference), matte black rails, white diamond sights, black pockets, and two lamps baked into the lighting. The UI is broadcast graphics: a white scorebug with angled ends, white lower-third banners and dialogs with a navy title bar, condensed capitals (Sofia Sans Extra Condensed, with Sofia Sans for body text), square corners, and one accent colour, the 1-ball's yellow, used for the player to shoot and the main action on each screen. This replaced an earlier dark-panel, brass-accent, serif look that users found generic.
+- **Fonts:** bundled in `src/fonts/` (latin subsets, about 100 KB, SIL Open Font Licence in `OFL.txt`) and precached, so the look is the same offline and nothing is fetched from a font CDN. `font-display: swap` means a cold first load can show the system font for a moment.
+- **Icon:** a cream cue ball on blue cloth with a black pocket and rail arc. It isn't an 8-ball, which keeps it clear of the reference game's logo.
 - **No monetisation imitation:** there are no coins, shop, XP, levels, unlocks or ads. Stats are records only.
 
 ## 1. Stack and deployment
@@ -123,7 +124,7 @@ The base is the **WPA World Standardised Rules for 8-ball** (2025 edition, verif
   - **Known cost:** with Portrait Orientation Lock on, the phone never rotates. The prompt tells the player to switch the lock off. Drawing the game rotated in portrait would avoid that, but every touch mapping, the safe areas and the keyboard would need rotating too.
   - The manifest says `landscape` anyway, for Android and desktop installs.
 - **Arrangement** follows the common mobile-pool convention you pointed me at: menu top left, player plates (name plus seven ball slots) meeting in the middle around a table-status button, spin top right, power down the left edge, fine-aim roller down the right edge, the table centred between them, and turn messages as a toast along the bottom of the table. Left-handed swaps the two side columns.
-  - Only the arrangement is shared. The art (teal cloth, walnut rails, brass accents, the cue, no avatars or badges) stays Baize's own; copying the reference's look would recreate that game, which the brief ruled out.
+  - Only the arrangement is shared. The art (blue cloth, black rails, broadcast-style graphics, the cue, no avatars or badges) stays Baize's own; copying the reference's look would recreate that game, which the brief ruled out.
 - **Dialogs** (game over, pause, spin, settings) keep their buttons pinned to the bottom of the card, and on short screens the cards are compacted and the spin picker goes two-column. A phone showed the game-over buttons cut off by the home-indicator margin; a browser check now covers every dialog.
 - **Table size:** the 7 ft bar-box size. It's limited by screen height, not width. Measured ball diameters: SE 14.1 pt, iPhone 15 size 14.7 pt, Pro Max 16.5 pt.
 
@@ -246,7 +247,7 @@ If none of these fix it, record a session (section 4) and send the JSON.
 ## 11. Accessibility
 
 - **Reduced motion:** follows `prefers-reduced-motion` and can be overridden in Settings. Banners appear without sliding, the cue stroke is shortened, and there's no camera motion (the game has none). Ball motion is the game itself, so it stays, but "Instant shots" can skip the playback.
-- **Contrast:** HUD text is at least 7:1 on its panels. Groups are shown as numbered ball icons plus the words "Solids"/"Stripes", never colour alone.
+- **Contrast:** HUD text is at least 7:1 on its panels (the dimmed plate of the player not shooting is the lowest, 7.3:1). Other text is at least 4.5:1 (secondary grey on button grey is the lowest, 5.1:1). Groups are shown as numbered ball icons plus the words "Solids"/"Stripes", never colour alone.
 - **VoiceOver:** all menus are real buttons with labels. A polite live region announces turns, pots, fouls, ball in hand, groups and the result. A "Table status" button reads the remaining balls per player.
 - **Playing without precise dragging:** "Assisted aiming" adds three things:
   - a list to pick a target ball and pocket, which sets the exact ghost-ball aim

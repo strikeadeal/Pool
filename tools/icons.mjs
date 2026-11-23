@@ -10,11 +10,11 @@ const svg = readFileSync(root + 'icons/icon.svg', 'utf8');
 const browser = await chromium.launch();
 const shot = async (w, h, html, out) => {
   const page = await browser.newPage({ viewport: { width: w, height: h }, deviceScaleFactor: 1 });
-  await page.setContent(`<html><body style="margin:0;background:#070a0b">${html}</body></html>`);
+  await page.setContent(`<html><body style="margin:0;background:#050b16">${html}</body></html>`);
   await page.screenshot({ path: out });
   await page.close();
 };
-const icon = (size, pad = 0) => `<div style="width:${size}px;height:${size}px;background:#0c585d;display:grid;place-items:center">
+const icon = (size, pad = 0) => `<div style="width:${size}px;height:${size}px;background:#1d599f;display:grid;place-items:center">
   <div style="width:${size * (1 - pad)}px;height:${size * (1 - pad)}px">${svg.replace('<svg ', `<svg width="${size * (1 - pad)}" height="${size * (1 - pad)}" `)}</div></div>`;
 await shot(180, 180, icon(180), root + 'icons/apple-touch-icon.png');
 await shot(192, 192, icon(192), root + 'icons/icon-192.png');
@@ -32,7 +32,7 @@ for (const [w, h, d] of devices) {
     const [pw, ph] = orient === 'portrait' ? [w * d, h * d] : [h * d, w * d];
     const size = Math.min(pw, ph) * 0.42;
     const name = `${w}x${h}@${d}-${orient}.png`;
-    await shot(pw, ph, `<div style="width:${pw}px;height:${ph}px;display:grid;place-items:center;background:#070a0b">
+    await shot(pw, ph, `<div style="width:${pw}px;height:${ph}px;display:grid;place-items:center;background:#050b16">
       ${ball.replace('<svg ', `<svg width="${size}" height="${size}" `)}</div>`, root + 'icons/splash/' + name);
     links.push(`<link rel="apple-touch-startup-image" media="screen and (device-width: ${w}px) and (device-height: ${h}px) and (-webkit-device-pixel-ratio: ${d}) and (orientation: ${orient})" href="icons/splash/${name}">`);
   }
