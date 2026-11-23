@@ -52,7 +52,10 @@ body::before { content: ""; position: fixed; left: -50vw; top: -50vh; width: 200
 #gl { position: absolute; left: 0; top: 0; display: block; touch-action: none; }
 [hidden] { display: none !important; }
 .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
-button { font: inherit; color: inherit; touch-action: manipulation; }
+/* min-width 0 here and minmax(0, 1fr) on the grids that hold buttons: a button's box never depends on its text. The
+   web fonts arrive a moment after the first paint on a cold launch, and a box sized by fallback-font text moves
+   when they land, so a quick tap hits the wrong place or nothing. */
+button { font: inherit; color: inherit; touch-action: manipulation; min-width: 0; }
 #haptic { position: absolute; left: -100px; top: -100px; width: 1px; height: 1px; overflow: hidden; opacity: 0; }
 
 /* ---------- HUD ---------- */
@@ -191,7 +194,7 @@ button { font: inherit; color: inherit; touch-action: manipulation; }
 h2 { position: sticky; top: 0; z-index: 1; margin: 0 -22px 16px; padding: 14px 22px 11px; background: var(--navy); color: #fff;
   box-shadow: inset 0 -4px 0 var(--accent); font: 900 30px/1 var(--cond); text-transform: uppercase; letter-spacing: .01em; }
 h3 { margin: 18px 0 8px; font: 800 17px/1 var(--cond); color: var(--ink); letter-spacing: .06em; text-transform: uppercase; }
-.menu { display: grid; gap: 10px; }
+.menu { display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; }
 .menu-row { display: flex; gap: 8px; }
 .menu-row .btn { flex: 1; }
 .btn { min-height: 50px; padding: 0 18px; border-radius: 3px; border: 0; background: var(--paper-2); color: var(--ink);
@@ -246,7 +249,7 @@ pre#diag-vp { font: 11px/1.45 ui-monospace, Menlo, monospace; color: var(--ink);
 
 /* Title: the wordmark on the left like a broadcast title card, the menu as a stack of bars on the right. */
 #title { background: linear-gradient(90deg, rgba(4,9,19,.97) 0 44%, rgba(4,9,19,.7) 62%, rgba(4,9,19,.45)); }
-.title-inner { width: 100%; max-width: 720px; display: grid; grid-template-columns: 1fr minmax(240px, 290px); column-gap: 44px; align-items: center; }
+.title-inner { width: 100%; max-width: 720px; display: grid; grid-template-columns: minmax(0, 1fr) minmax(240px, 290px); column-gap: 44px; align-items: center; }
 .wordmark { grid-column: 1; align-self: end; margin: 0; font: 900 138px/.8 var(--cond); text-transform: uppercase; letter-spacing: -.012em; color: var(--text); }
 .tag { grid-column: 1; align-self: start; justify-self: start; margin: 14px 0 0; padding: 6px 10px 5px; background: var(--accent); color: var(--ink);
   font: 800 19px/1 var(--cond); letter-spacing: .06em; text-transform: uppercase; }
@@ -262,12 +265,12 @@ pre#diag-vp { font: 11px/1.45 ui-monospace, Menlo, monospace; color: var(--ink);
   h2 { font-size: 26px; margin: 0 -16px 12px; padding: 11px 16px 9px; }
   .trophy { width: 40px; height: 40px; margin-bottom: 8px; }
   .over-stats { margin-top: 10px; gap: 6px 16px; }
-  #spin .card { max-width: 560px; display: grid; grid-template-columns: auto 1fr; column-gap: 20px; align-items: center; align-content: center; }
+  #spin .card { max-width: 560px; display: grid; grid-template-columns: auto minmax(0, 1fr); column-gap: 20px; align-items: center; align-content: center; }
   #spin .card > * { grid-column: 2; }
   #spin .card > h2 { grid-column: 1 / -1; }
   #spin #spin-pad { grid-column: 1; grid-row: 2 / span 4; margin: 0; }
   #pause .card { max-width: 560px; }
-  #pause .menu { grid-template-columns: 1fr 1fr; }
+  #pause .menu { grid-template-columns: repeat(2, minmax(0, 1fr)); }
   #pause #p-resume, #pause #p-forfeit { grid-column: 1 / -1; }
   .btn { min-height: 44px; }
 }
@@ -289,11 +292,11 @@ pre#diag-vp { font: 11px/1.45 ui-monospace, Menlo, monospace; color: var(--ink);
 /* Reduced motion: no transitions or looping animation (ball motion is the game itself). */
 .reduce-motion *, .reduce-motion *::before, .reduce-motion *::after { transition: none !important; animation: none !important; }
 /* Setup: names side by side so the 8-ball option shows without scrolling on small phones. */
-#setup-pvp:not([hidden]) { display: grid; grid-template-columns: 1fr 1fr; column-gap: 12px; }
+#setup-pvp:not([hidden]) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 12px; }
 #setup-pvp .fine { grid-column: 1 / -1; }
 #setup .field { min-width: 0; }
 #setup .field input { width: 100%; min-width: 0; box-sizing: border-box; }
-#setup-cpu:not([hidden]) { display: grid; grid-template-columns: 1fr 1fr; column-gap: 12px; align-items: end; }
+#setup-cpu:not([hidden]) { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); column-gap: 12px; align-items: end; }
 #setup-cpu .label { grid-area: 1 / 1; }
 #setup-cpu .seg { grid-area: 2 / 1; }
 #setup-cpu .field { grid-area: 1 / 2 / 3; margin: 0; }

@@ -96,7 +96,7 @@ npm start         # builds to dist/ and serves it at http://localhost:8080/pool/
 - **Browser tests** (optional; needs Playwright, `npm i -D playwright && npx playwright install chromium webkit`):
 
   ```sh
-  node tools/e2e/verify.cjs chromium --shots   # 26 checks; screenshots into docs/screenshots
+  node tools/e2e/verify.cjs chromium --shots   # 30 checks; screenshots into docs/screenshots
   node tools/e2e/verify.cjs webkit             # the same checks in WebKit
   ```
 
