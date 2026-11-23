@@ -960,6 +960,9 @@ function boot() {
   initRecorder(() => ({ viewport: meas, layout: lay && { table: lay.table, ballPx: lay.ballPx }, version: VERSION }));
   Store.requestPersistence();
   titleBalls = Rules.newGame({ mode: 'practice', players: [{ name: '' }], seed: 20240607 }).balls;
+  // Lift the title rack and cue ball into the open cloth above the menu, so the buttons don't half-cover them.
+  // 0.34 m clears the buttons and wordmark at SE, standard and Pro Max sizes, with or without Continue.
+  for (let i = 0; i < 16; i++) titleBalls.y[i] += 0.34;
   game = recover(Store.load('game', null));
   if (game && game.phase === 'over') { game = null; Store.remove('game'); }
   wire();
