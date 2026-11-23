@@ -99,7 +99,7 @@ function relayout() {
   place($('roller'), lay.roller);
   place($('spin-btn'), lay.spin);
   place($('assist'), lay.assist);
-  const b = $('banner'); b.style.left = lay.cx + 'px'; b.style.top = (lay.table.y + lay.table.h - 10) + 'px';
+  $('banner').style.left = lay.cx + 'px';   // top is set per banner, away from the cue ball
   const th = $('thinking'); th.style.left = (lay.cx - 30) + 'px'; th.style.top = (lay.table.y + 14) + 'px';
   app.classList.remove('booting');
   input?.showPower(0);
@@ -558,10 +558,15 @@ function banner(title, detail, kind = '', ms = 2400) {
   const b = $('banner');
   b.querySelector('.b-title').textContent = title;
   b.querySelector('.b-detail').textContent = detail || '';
-  b.className = 'show' + (kind ? ' ' + kind : '');
+  // Sit on the half of the table away from the cue ball, so the banner never hides the shot.
+  const top = !!(game && lay && game.balls.on[0] && toScreen(lay, game.balls.x[0], game.balls.y[0])[1] > lay.cy);
+  if (lay) b.style.top = (top ? lay.table.y + 10 : lay.table.y + lay.table.h - 10) + 'px';
+  const base = [kind, top && 'top'].filter(Boolean).join(' ');
+  b.className = 'show ' + base;
   clearTimeout(bannerTimer);
-  bannerTimer = setTimeout(() => { b.className = kind; }, ms);
+  bannerTimer = setTimeout(() => { b.className = base; }, ms);
 }
+function hideBanner() { clearTimeout(bannerTimer); $('banner').classList.remove('show'); }
 function announce(text) { const l = $('live'); l.textContent = ''; setTimeout(() => { l.textContent = text; }, 50); }
 
 // ---------------------------------------------------------------- tutorial
@@ -660,14 +665,16 @@ function startGame(mode, breaker = 0) {
 function showDecision() {
   const d = game.decision;
   const who = game.players[d.who];
+  const titles = { illegalBreak: 'Illegal break', eightBreak: '8 potted on the break', eightBreakScratch: '8 potted on the break, with a scratch' };
   if (who.cpu) {
-    banner(`${who.name} is deciding…`, '', '', 1200);
-    setTimeout(() => { if (game?.decision) { game = Rules.decide(game, chooseDecision(game)); saveGame(); setupTurn(); } }, 1100);
+    // Keep the reason on screen (the shot's own banner is replaced by this one) long enough to read.
+    const reason = d.reason ? d.reason + ' ' : '';
+    banner(titles[d.kind], `${reason}${who.name} is deciding…`, d.kind === 'illegalBreak' ? 'foul' : '', reason ? 3000 : 1200);
+    setTimeout(() => { if (game?.decision) { game = Rules.decide(game, chooseDecision(game)); saveGame(); setupTurn(); } }, reason ? 2600 : 1100);
     return;
   }
-  const titles = { illegalBreak: 'Illegal break', eightBreak: '8 potted on the break', eightBreakScratch: '8 potted on the break, with a scratch' };
   $('dec-h').textContent = titles[d.kind];
-  $('dec-p').textContent = who.name === 'You' ? 'Your choice.' : `${who.name}, your choice.`;
+  $('dec-p').textContent = (d.reason ? d.reason + ' ' : '') + (who.name === 'You' ? 'Your choice.' : `${who.name}, your choice.`);
   const box = $('dec-opts');
   box.innerHTML = '';
   for (const o of Rules.decisionOptions(game)) {
@@ -870,6 +877,7 @@ function wire() {
     saveSettings();
     startGame(mode);
   };
+  $('app').addEventListener('pointerdown', () => { if (screenName === 'game') hideBanner(); });   // any touch clears the message
   $('menu-btn').onclick = () => { play('tick', 0.3); openSheet('pause'); };
   $('status-btn').onclick = () => { if (game) { const t = Rules.describe(game); announce(t); banner('Table status', t, '', 4500); } };
   $('p-resume').onclick = () => hideOverlay();

@@ -23,11 +23,11 @@ function midGame({ anaGroup = 'S', clear = [] } = {}) {
 const SOLIDS = [1, 2, 3, 4, 5, 6, 7], STRIPES = [9, 10, 11, 12, 13, 14, 15];
 
 test('break: pot = legal, breaker continues, table stays open', () => {
-  const { state, report } = shot(game(), { first: 1, pocketed: [[3, 0]], cushionBalls: [] });
+  const { state, report } = shot(game(), { first: 1, pocketed: [[3, 0], [9, 2]], cushionBalls: [] });
   assert.equal(state.phase, 'play'); assert.equal(state.turn, 0);
   assert.deepEqual(state.groups, [null, null]);
   assert.equal(state.ballInHand, null);
-  assert.match(report.title, /Good break/);
+  assert.equal(report.title, 'Good break: potted 3, 9');   // names the balls, not just a count
 });
 
 test('break: four balls to a cushion without a pot is legal; turn passes', () => {
@@ -39,6 +39,7 @@ test('break: fewer than four to a cushion and no pot is illegal; opponent choose
   const { state } = shot(game(), { first: 1, cushionBalls: [2, 5, 9] });
   assert.equal(state.phase, 'decision');
   assert.equal(state.decision.who, 1);
+  assert.match(state.decision.reason, /fewer than four balls reached a cushion/);   // shown with the choice
   assert.deepEqual(Rl.decisionOptions(state).map((o) => o.id), ['accept', 'rerackSelf', 'rerackOther']);
   const a = Rl.decide(state, 'accept');
   assert.equal(a.turn, 1); assert.equal(a.phase, 'play');
