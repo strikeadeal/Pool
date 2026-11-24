@@ -198,8 +198,9 @@ async function runUpdates(bench) {
   const { page, context } = await B.page({ sw: true, ctx });
   let loads = 0; page.on('load', () => loads++);
   await page.goto(page.url0);
-  await page.waitForFunction(() => navigator.serviceWorker.controller, null, { timeout: 20000 });
-  const pending = async (v) => { build(v); await page.evaluate(() => window.__swReg.update()); await page.waitForFunction(() => window.__swReg.waiting, null, { timeout: 20000 }); };
+  await page.waitForFunction(() => navigator.serviceWorker.controller && window.__baize && !document.getElementById('app').classList.contains('booting'), null, { timeout: 20000 });
+  await settle(page, 4500);   // past launch: the previous version treated the first 4 s as launch and reloaded then
+  const pending = async (v) => { build(v); await page.evaluate(() => window.__swReg.update()); await page.waitForFunction(() => window.__swReg?.waiting, null, { timeout: 20000 }); };
   const tapWhenShown = async (sel) => {
     const t0 = Date.now();
     let box = null;
@@ -208,7 +209,7 @@ async function runUpdates(bench) {
       if (!box) await new Promise((r) => setTimeout(r, 15));
     }
     await new Promise((r) => setTimeout(r, 150));
-    await page.mouse.click(...box).catch(() => {});
+    if (box) await page.mouse.click(...box).catch(() => {});   // never shown: recorded as a lost tap
     await page.waitForTimeout(3000);
   };
   const record = async (name, okFn, l0) => {
@@ -223,6 +224,12 @@ async function runUpdates(bench) {
   await page.goto(page.url0).catch(() => {});
   await tapWhenShown('[data-go="setup-cpu"]');
   await record('update waiting at launch → tap the menu', async () => (await overlay(page)) === 'setup', l0 + 1);
+  await click(page, '#setup [data-back]'); await settle(page, 300);
+  // 1b. a deploy while the app was closed: the update is found, downloaded and ready during the launch itself
+  await page.goto('about:blank'); build('u1b'); l0 = loads;
+  await page.goto(page.url0).catch(() => {});
+  await tapWhenShown('[data-go="setup-cpu"]');
+  await record('update found during launch → tap the menu', async () => (await overlay(page)) === 'setup', l0 + 1);
   await click(page, '#setup [data-back]'); await settle(page, 300);
   // 2. game over with an update waiting
   await click(page, '[data-go="setup-pvp"]'); await settle(page, 300); await click(page, '#setup-start'); await settle(page, 600);
@@ -243,7 +250,11 @@ async function runUpdates(bench) {
 }
 
 function build(suffix = '') { execSync('node tools/build.mjs', { cwd: ROOT, env: { ...process.env, BAIZE_VERSION_SUFFIX: suffix }, stdio: 'pipe' }); }
-function serve() { const p = spawn(process.execPath, ['tools/serve.mjs', String(PORT), '/pool/'], { cwd: ROOT, stdio: 'ignore' }); return new Promise((r) => setTimeout(() => r(p), 400)); }
+// Fails if the port is taken: a server left over from another run (or another tree) would be measured instead.
+function serve() {
+  const p = spawn(process.execPath, ['tools/serve.mjs', String(PORT), '/pool/'], { cwd: ROOT, stdio: 'ignore' });
+  return new Promise((res, rej) => { p.on('exit', () => rej(new Error(`port ${PORT} is in use`))); setTimeout(() => res(p), 400); });
+}
 
 module.exports = { Bench, runAll, runUpdates, build, serve, startHogs, stopHogs, URL };
 
