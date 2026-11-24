@@ -1,4 +1,5 @@
-// Procedural art, painted once with Canvas 2D (at start-up or on resize, never per frame).
+// Procedural art, painted once with Canvas 2D (at start-up or on resize, never per frame). paintScene runs in a worker
+// (js/paint.js) where OffscreenCanvas exists, so it uses no DOM.
 import { L, W, FOOT_X, TABLE } from './physics.js';
 import { RAIL, CUSHION } from './layout.js';
 
@@ -12,17 +13,27 @@ export function holeCentre(p) {
   return [pk.mx + pk.ax * d, pk.my + pk.ay * d, HOLE_R];
 }
 
-function makeNoise(size, alpha) {
+const canvas = (w, h) => {
+  if (typeof document === 'undefined') return new OffscreenCanvas(w, h);
   const c = document.createElement('canvas');
-  c.width = c.height = size;
-  const g = c.getContext('2d');
-  const img = g.createImageData(size, size);
-  for (let i = 0; i < img.data.length; i += 4) {
+  c.width = w; c.height = h;
+  return c;
+};
+
+// Cloth weave noise: the pixels of a 128 px tile. Made on the main thread and passed to the worker, so Math.random
+// is called in the same place as before (tests seed it to compare paintings).
+export function noisePixels(size = 128, alpha = 16) {
+  const d = new Uint8ClampedArray(size * size * 4);
+  for (let i = 0; i < d.length; i += 4) {
     const v = Math.random() < 0.5 ? 0 : 255;
-    img.data[i] = img.data[i + 1] = img.data[i + 2] = v;
-    img.data[i + 3] = Math.random() * alpha;
+    d[i] = d[i + 1] = d[i + 2] = v;
+    d[i + 3] = Math.random() * alpha;
   }
-  g.putImageData(img, 0, 0);
+  return d;
+}
+function makeNoise(px, size = 128) {
+  const c = canvas(size, size);
+  c.getContext('2d').putImageData(new ImageData(px, size, size), 0, 0);
   return c;
 }
 
@@ -55,10 +66,9 @@ function feltPath(g) {
   g.closePath();
 }
 
-export function paintScene(lay, dpr) {
+export function paintScene(lay, dpr, noise = noisePixels()) {
   const cw = Math.round(lay.w * dpr), ch = Math.round(lay.h * dpr);
-  const c = document.createElement('canvas');
-  c.width = cw; c.height = ch;
+  const c = canvas(cw, ch);
   const g = c.getContext('2d');
   // Room
   const [tcx, tcy] = [lay.cx * dpr, lay.cy * dpr];
@@ -160,7 +170,7 @@ export function paintScene(lay, dpr) {
   }
   // cloth weave noise, applied in device space
   g.setTransform(1, 0, 0, 1, 0, 0);
-  g.fillStyle = g.createPattern(makeNoise(128, 16), 'repeat');
+  g.fillStyle = g.createPattern(makeNoise(noise), 'repeat');
   g.fillRect(0, 0, cw, ch);
   world();
   // cloth mark near the head rail and the foot spot
@@ -221,8 +231,7 @@ export function paintScene(lay, dpr) {
 
 // Ball numbers: 4x4 atlas of 64px cells, index = ball number.
 export function paintDigits() {
-  const c = document.createElement('canvas');
-  c.width = c.height = 256;
+  const c = canvas(256, 256);
   const g = c.getContext('2d');
   g.fillStyle = '#fff'; g.fillRect(0, 0, 256, 256);
   g.fillStyle = '#111'; g.textAlign = 'center'; g.textBaseline = 'middle';
@@ -237,8 +246,7 @@ export function paintDigits() {
 
 // Cue stick, tip at the left. 512x32, shaded as a cylinder across its height.
 export function paintCue() {
-  const c = document.createElement('canvas');
-  c.width = 512; c.height = 32;
+  const c = canvas(512, 32);
   const g = c.getContext('2d');
   const bands = [
     [0, 0.012, '#3d6fb3'],     // chalked tip
