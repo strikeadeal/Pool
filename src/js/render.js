@@ -4,10 +4,13 @@
 import { L, W, R, N } from './physics.js';
 import { paintScene, noisePixels, paintDigits, paintCue, BALL_COLORS, hexToRgb, LAMPS, FELT_RGB } from './textures.js';
 
-// Painting the table and room is a full-screen Canvas 2D raster plus a texture upload: 0.25 s at SE size and 0.6-0.9 s
-// at 3x on a 4x-throttled WebKit, all in one task, and taps wait behind it. So a worker paints it and the main thread
-// uploads it in strips, a few per task. Where there's no OffscreenCanvas (iOS before 16.4) it's painted here, as before.
-const STRIP_PX = 1 << 17;    // pixels per strip handed back by the worker (512 KB)
+// Painting the table and room is a full-screen Canvas 2D raster plus a texture upload: 0.25 s at SE size and 0.6-1.3 s
+// at 3x on a 4x-throttled WebKit, all in one task, and taps wait behind it. So a worker paints it (and the ball digits
+// and cue) and hands it back as raw pixels, one strip per message, and the main thread uploads a few strips per task
+// into one texture. The texture is allocated by copying the canvas (a GPU copy): allocating it empty makes WebGL
+// zero-fill 12 MB on the CPU at 3x. Where there's no OffscreenCanvas (iOS before 16.4) it's all painted here, as before.
+// DECISIONS.md §13 has the measurements and the alternatives that failed.
+const STRIP_PX = 1 << 17;    // pixels per strip (384 KB of RGB): 8 strips at SE size, 23 at 3x
 const UPLOAD_MS = 6;         // upload strips for at most this long per task
 let worker = null, jobId = 0;
 function painter() {
@@ -121,11 +124,13 @@ function compile(gl, vs, fs) {
   return { p, u };
 }
 
+// src: a canvas, or { w, h, px } with the pixels as getImageData gives them (from the worker)
 function texture(gl, src, mip) {
   const t = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, t);
   gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+  if (src.px) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, src.w, src.h, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(src.px));
+  else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
@@ -161,10 +166,11 @@ export class Renderer {
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-    this.digitTex = this.cueTex = null;   // made by paintBg while the worker paints (they're a 40-60 ms task)
+    this.digitTex = this.cueTex = null;   // painted with the first table (by the worker, or makeTextures)
     this.bg = null;         // the painting on screen: { key, lay, tex }
     this.bgs = [];          // the last two paintings, so going between two layouts (assisted aiming) doesn't repaint
-    this.job = null;
+    this.job = null;        // the painting under way, same shape
+    this.inbox = [];        // strips and textures from the worker, waiting to be uploaded
   }
 
   resize(lay, dpr) {
@@ -193,43 +199,68 @@ export class Renderer {
     this.cueTex = texture(this.gl, paintCue(), true);
     if (this.ready) this.onReady?.();
   }
+  dropJob() {
+    if (this.job?.tex) this.gl.deleteTexture(this.job.tex);
+    this.job = null;
+  }
+  finish(job) {
+    this.job = null;
+    this.bg = job;
+    this.bgs = [job, ...this.bgs.filter((b) => b.key !== job.key)];
+    for (const b of this.bgs.splice(2)) this.gl.deleteTexture(b.tex);
+    if (this.ready) this.onReady?.();
+  }
 
   // Until the new painting is in, the last one stays up, moved and scaled so its table sits on the new table.
   paintBg(lay, dpr, key) {
+    this.dropJob();
     const hit = this.bgs.find((b) => b.key === key);
-    if (hit) { this.job = null; this.bg = hit; return; }
-    const gl = this.gl, job = (this.job = { id: ++jobId });
-    const finish = (tex) => {
-      this.job = null;
-      this.bg = { key, lay, tex };
-      this.bgs = [this.bg, ...this.bgs.filter((b) => b.key !== key)];
-      for (const b of this.bgs.splice(2)) gl.deleteTexture(b.tex);
-      if (this.ready) this.onReady?.();
-    };
+    if (hit) { this.bg = hit; return; }
+    const gl = this.gl, cw = Math.round(lay.w * dpr), ch = Math.round(lay.h * dpr);
+    const job = (this.job = { id: ++jobId, key, lay, w: cw, h: ch, tex: null });
     const w = painter();
-    if (!w) { this.makeTextures(); finish(texture(gl, paintScene(lay, dpr), false)); return; }
-    const cw = Math.round(lay.w * dpr), ch = Math.round(lay.h * dpr);
-    const fail = () => { if (this.job === job) { worker = false; this.paintBg(lay, dpr, key); } };
-    w.onerror = fail;
-    w.onmessage = ({ data }) => {
-      if (data.id !== job.id || this.job !== job || this.lost) { for (const b of data.strips) b.close(); return; }
-      const tex = gl.createTexture();
-      gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex);
-      gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, cw, ch, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    if (!w) {
+      this.makeTextures();
+      job.tex = texture(gl, paintScene(lay, dpr), false);
+      this.finish(job); return;
+    }
+    w.onerror = () => { if (this.job === job) { worker = false; this.paintBg(lay, dpr, key); } };
+    w.onmessage = ({ data }) => { this.inbox.push(data); if (this.inbox.length === 1) setTimeout(() => this.pump(), 0); };
+    w.postMessage({ id: job.id, lay: { w: lay.w, h: lay.h, s: lay.s, cx: lay.cx, cy: lay.cy, ex: lay.ex, ey: lay.ey }, dpr,
+      noise: noisePixels(), rows: Math.max(1, Math.floor(STRIP_PX / cw)), extras: !this.digitTex });
+  }
+  pump() {
+    if (!this.inbox.length) return;   // emptied by a context restore
+    const t = performance.now();
+    do this.take(this.inbox.shift()); while (this.inbox.length && performance.now() - t < UPLOAD_MS);
+    if (this.inbox.length) setTimeout(() => this.pump(), 0);
+  }
+  take(d) {
+    const gl = this.gl;
+    if (this.lost) return;
+    const slot = { digits: 'digitTex', cue: 'cueTex' }[d.kind];
+    if (slot) {
+      if (!this[slot]) this[slot] = texture(gl, d, true);
+      if (this.ready) this.onReady?.();
+      return;
+    }
+    const job = this.job;
+    if (!job || d.id !== job.id) return;
+    gl.activeTexture(gl.TEXTURE0);
+    if (!job.tex) {
+      job.tex = gl.createTexture();
+      gl.bindTexture(gl.TEXTURE_2D, job.tex);
+      const c = this.canvas;
+      // the canvas is this painting's size (a resize starts a new job), so copying it allocates the texture
+      if (c.width === job.w && c.height === job.h) gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.RGB, 0, 0, job.w, job.h, 0);
+      else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, job.w, job.h, 0, gl.RGB, gl.UNSIGNED_BYTE, null);
       for (const [k, v] of [[gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE], [gl.TEXTURE_MAG_FILTER, gl.LINEAR], [gl.TEXTURE_MIN_FILTER, gl.LINEAR]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
-      let i = 0, y = 0;
-      const step = () => {
-        if (this.job !== job || this.lost) { gl.deleteTexture(tex); for (const b of data.strips.slice(i)) b.close(); return; }
-        const t = performance.now();
-        gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex);
-        do { const b = data.strips[i++]; gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, y, gl.RGBA, gl.UNSIGNED_BYTE, b); y += b.height; b.close(); }
-        while (i < data.strips.length && performance.now() - t < UPLOAD_MS);
-        if (i < data.strips.length) setTimeout(step, 0); else finish(tex);
-      };
-      step();
-    };
-    w.postMessage({ id: job.id, lay: { w: lay.w, h: lay.h, s: lay.s, cx: lay.cx, cy: lay.cy, ex: lay.ex, ey: lay.ey }, dpr, noise: noisePixels(), rows: Math.max(1, Math.floor(STRIP_PX / cw)) });
-    if (!this.digitTex) setTimeout(() => this.makeTextures(), 0);
+    }
+    gl.bindTexture(gl.TEXTURE_2D, job.tex);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);   // RGB rows aren't a multiple of 4 bytes
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, d.y, d.w, d.h, gl.RGB, gl.UNSIGNED_BYTE, new Uint8Array(d.px));
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+    if (d.last) this.finish(job);
   }
 
   use(prog) {

@@ -1001,7 +1001,7 @@ function boot2() {
   registerSW();
   requestRender();
   setTimeout(initAudio, 0);
-  window.__baize = { frameMs, version: VERSION, get screen() { return screenName; }, get overlay() { return overlay; }, get game() { return game; }, get lay() { return lay; }, get pb() { return pb; }, get cpu() { return cpu; }, shoot, setAim, app, settings, get meas() { return meas; } };
+  window.__baize = { renderer, frameMs, version: VERSION, get screen() { return screenName; }, get overlay() { return overlay; }, get game() { return game; }, get lay() { return lay; }, get pb() { return pb; }, get cpu() { return cpu; }, shoot, setAim, app, settings, get meas() { return meas; } };
 }
 
 boot();
