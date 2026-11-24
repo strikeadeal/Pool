@@ -286,8 +286,9 @@ pre#diag-vp { font: 11px/1.45 ui-monospace, Menlo, monospace; color: var(--ink);
   box-shadow: 0 0 0 4px rgba(216,52,42,.25), 0 2px 6px rgba(0,0,0,.4); will-change: transform; }
 #spin-presets { margin-top: 12px; }
 
-/* Booting: hide everything except the canvas until the first layout. */
-#app.booting > :not(canvas) { visibility: hidden; }
+/* Booting (and reloading for an update): the launch colour only, until the table is painted. Nothing tappable shows
+   before it can respond. */
+#app.booting > * { visibility: hidden; }
 
 /* Reduced motion: no transitions or looping animation (ball motion is the game itself). */
 .reduce-motion *, .reduce-motion *::before, .reduce-motion *::after { transition: none !important; animation: none !important; }

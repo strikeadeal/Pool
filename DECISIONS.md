@@ -21,7 +21,7 @@ Each entry: what I chose, what I considered, why. Written before the code and ke
 - **Build step exists only to make updates safe.** `tools/build.mjs` copies `src/` to `dist/` and computes a SHA-256 for every asset. It writes the file list and a content-derived version into `sw.js`.
   - Any change to any file changes `sw.js`, so installed copies always see the update.
   - Hand-bumping a version string was rejected: forgetting to bump it once means installed copies never update.
-- **When an update applies:** straight away only at launch before any touch, or on arriving at the menu or the game-over screen. One that finishes downloading while someone is using the app, menus included, waits and shows an "update ready" pill.
+- **When an update applies:** only while nothing on screen can be tapped. That's at launch before the menu has appeared (a version already downloaded is found within milliseconds), or on arriving at the menu, with the screen cleared the moment the reload starts. One that finishes downloading any later waits and shows an "update ready" pill. See §13 for why the launch window and the game-over screen were dropped.
   - It used to reload the moment the download finished whenever the menu was showing. That landed on taps: someone opened a sheet from the menu, the page reloaded and the sheet vanished, so the button seemed to need pressing twice. Every deploy did this once per phone.
 - **Deploy:** a GitHub Actions workflow runs the tests, builds and deploys `dist/` to Pages on every push to `main`.
   - One-time setting: Settings → Pages → Source: **GitHub Actions**.
@@ -137,7 +137,7 @@ The base is the **WPA World Standardised Rules for 8-ball** (2025 edition, verif
 ## 6. Visuals, sound, haptics
 
 - **Rendering:**
-  - **Table:** the background and table (wood grain, cloth noise, lamp falloff, pockets, diamonds) are painted once per resize with Canvas 2D into a texture.
+  - **Table:** the background and table (wood grain, cloth noise, lamp falloff, pockets, diamonds) are painted once per resize with Canvas 2D into a texture. The painting runs in a worker on an `OffscreenCanvas` and is uploaded in strips (§13); without `OffscreenCanvas` (iOS before 16.4) it's painted on the main thread as before.
   - **Balls:** each ball is a quad. The fragment shader computes the sphere normal, rotates it by the ball's orientation and shades the stripe band, number disc and glyph analytically, with two lamp highlights and a cloth-coloured rim reflection. There's no texture stretching, and numbers stay crisp at every size.
   - **Extras:** shadows are soft sprites. Potted balls sink and fade.
 - **Sound:** recorded, not synthesised. Players said the original synthesised sounds didn't sound like pool.
@@ -218,7 +218,7 @@ The base is the **WPA World Standardised Rules for 8-ball** (2025 edition, verif
    - The tuning advice is in section 10.
 3. **Smooth animation**
    - WebGL with a static table texture, no CSS filters, no per-frame DOM and no layout thrash.
-   - The scene isn't rebuilt at key moments: textures are made at start-up and on resize only, and the WebGL context is reused.
+   - The scene isn't rebuilt at key moments: textures are made at start-up and on resize only (off the main thread, §13), and the WebGL context is reused.
    - The render loop sleeps when idle, and the sim is time-sliced.
 4. **Saved data**
    - Keys are versioned (`baize.v1.game`, `baize.v1.stats`, `baize.v1.settings`).
