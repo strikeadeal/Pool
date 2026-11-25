@@ -16,7 +16,8 @@ const engineName = process.argv[2] === 'webkit' ? 'webkit' : 'chromium';
 const SHOTS = process.argv.includes('--shots');
 const OUT = path.join(ROOT, 'docs', 'screenshots');
 const results = [];
-const errors = [];
+let offlineNow = false;
+const errors = [], pendingErrors = [];   // pendingErrors: possibly teardown, judged at the end
 const ok = (name, pass, info = '') => { results.push({ name, pass, info }); console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}${info ? '  — ' + info : ''}`); };
 
 function build(suffix = '') {
@@ -31,8 +32,19 @@ const launchArgs = engineName === 'chromium' ? { args: ['--use-gl=angle', '--use
 async function newPage(browser, { w = 852, h = 393, dpr = 2, insets = '', ctx = null } = {}) {
   const context = ctx || await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: dpr, hasTouch: true, isMobile: engineName === 'chromium' });
   const page = await context.newPage();
-  page.on('console', (m) => { if (m.type() === 'error') errors.push(`[${w}x${h}] console: ${m.text()}`); });
-  page.on('pageerror', (e) => errors.push(`[${w}x${h}] pageerror: ${e.message}`));
+  // A reload while the table worker is still loading its modules (the update reload at launch does that) cancels the
+  // load, and WebKit logs it as a failed module load. Those two messages within 1.5 s of a navigation are teardown, not
+  // a fault; anywhere else they count.
+  const navs = [];
+  page.on('framenavigated', (f) => { if (f === page.mainFrame()) navs.push(Date.now()); });
+  const teardown = (text) => /Cannot load .*\/js\/[a-z]+\.js due to access control checks|Importing a module script failed/.test(text);
+  const report = (text) => {
+    const at = Date.now(), e = { text: `[${w}x${h}] ${text}`, at, navs };
+    if (teardown(text)) pendingErrors.push(e);
+    else if (!(offlineNow && /Failed to load resource/.test(text))) errors.push(e.text);   // offline: network loads fail, as they should
+  };
+  page.on('console', (m) => { if (m.type() === 'error') report(`console: ${m.text()}`); });
+  page.on('pageerror', (e) => report(`pageerror: ${e.message}`));
   return { context, page, url: URL + (insets ? `?insets=${insets}&standalone=1` : '') };
 }
 const B = (page, fn, arg) => page.evaluate(fn, arg);
@@ -333,13 +345,14 @@ async function playToEnd(page, maxTurns = 300) {
       await page.goto(URL);
       await page.waitForFunction(() => navigator.serviceWorker && navigator.serviceWorker.controller, null, { timeout: 20000 });
       const v1 = await B(page, () => window.__baize.version);
-      await context.setOffline(true);
-      await page.reload(); await page.waitForTimeout(800);
+      await context.setOffline(true); offlineNow = true;
+      // Playwright's WebKit reports an internal error for an offline reload even though the page loads; what counts is the page
+      await page.reload().catch(() => {}); await page.waitForTimeout(800);
       const offlineOk = await B(page, () => !!window.__baize && document.getElementById('title').hidden === false);
       await page.click('[data-go="practice"]'); await page.waitForTimeout(300);
       await aiTurn(page, 3); await waitIdle(page);
       ok('offline: app launches from the service worker cache and plays', offlineOk, `version ${v1}`);
-      await context.setOffline(false);
+      await context.setOffline(false); await page.waitForTimeout(300); offlineNow = false;
       // mid-game update: must not interrupt
       await page.click('#menu-btn'); await page.click('#p-quit'); await page.waitForTimeout(200);
       await page.click('[data-go="setup-pvp"]'); await page.click('#setup-start'); await page.waitForTimeout(300);
@@ -373,14 +386,20 @@ async function playToEnd(page, maxTurns = 300) {
       if (menuState.endsWith('setup')) await page.click('#setup [data-back]');
       // At launch, the version waiting (u2b) applies before the menu shows. One found after the menu is up (u3) waits:
       // a reload then would land on whatever the player is tapping. It applies at the next launch.
-      build('u3');
-      await page.reload();
-      await page.waitForFunction(() => window.__baize && window.__swReg?.waiting, null, { timeout: 20000 }).catch(() => {});
+      await page.reload(); await page.waitForTimeout(1500);
+      await page.waitForFunction(() => window.__baize && !document.getElementById('app').classList.contains('booting'), null, { timeout: 20000 }).catch(() => {});
       const atLaunch = await B(page, () => `${window.__baize.version} pill:${!document.getElementById('update-pill').hidden}`).catch(() => '?');
-      await page.reload(); await page.waitForTimeout(800);
-      const next = await B(page, () => window.__baize.version);
+      build('u3');
+      await B(page, () => window.__swReg.update()).catch(() => {});
+      await page.waitForFunction(() => window.__swReg?.waiting, null, { timeout: 20000 }).catch(() => {});
+      await page.waitForTimeout(600);
+      const shown = await B(page, () => `${window.__baize.version} pill:${!document.getElementById('update-pill').hidden}`).catch(() => '?');
+      await page.reload(); await page.waitForTimeout(1500);
+      await page.waitForFunction(() => window.__baize && !document.getElementById('app').classList.contains('booting'), null, { timeout: 20000 }).catch(() => {});
+      const next = await B(page, () => window.__baize.version).catch(() => '?');
+      const u2b = v2.replace(/u2$/, 'u2b');
       ok('update waiting at launch applies before the menu shows; one found once it shows waits for the next launch',
-        atLaunch === `${v2.replace(/u2$/, 'u2b')} pill:true` && next.endsWith('u3'), `${atLaunch} → ${next}`);
+        atLaunch === `${u2b} pill:false` && shown === `${u2b} pill:true` && next.endsWith('u3'), `${atLaunch} → ${shown} → ${next}`);
       await context.close();
     }
 
@@ -452,7 +471,8 @@ async function playToEnd(page, maxTurns = 300) {
     server.kill();
     build();   // leave dist/ as a clean build
   }
-  ok('no console errors or uncaught exceptions', errors.length === 0, errors.slice(0, 5).join(' | '));
+  for (const e of pendingErrors) if (!e.navs.some((t) => Math.abs(t - e.at) < 1500)) errors.push(e.text);
+  ok('no console errors or uncaught exceptions', errors.length === 0, errors.slice(0, 5).join(' | ') || `${pendingErrors.length} module loads cancelled by a reload`);
   const failed = results.filter((r) => !r.pass);
   console.log(`\n${results.length - failed.length}/${results.length} checks passed on ${engineName}`);
   process.exit(failed.length ? 1 : 0);

@@ -7,8 +7,7 @@ import { paintScene, noisePixels, paintDigits, paintCue, BALL_COLORS, hexToRgb, 
 // Painting the table and room is a full-screen Canvas 2D raster plus a texture upload: 0.25 s at SE size and 0.6-1.3 s
 // at 3x on a 4x-throttled WebKit, all in one task, and taps wait behind it. So a worker paints it (and the ball digits
 // and cue) and hands it back as raw pixels, one strip per message, and the main thread uploads a few strips per task
-// into one texture. The texture is allocated by copying the canvas (a GPU copy): allocating it empty makes WebGL
-// zero-fill 12 MB on the CPU at 3x. Where there's no OffscreenCanvas (iOS before 16.4) it's all painted here, as before.
+// into one texture (allocated ahead of need, see allocate()). Where there's no OffscreenCanvas (iOS before 16.4) it's all painted here, as before.
 // DECISIONS.md §13 has the measurements and the alternatives that failed.
 const STRIP_PX = 1 << 17;    // pixels per strip (384 KB of RGB): 8 strips at SE size, 23 at 3x
 const UPLOAD_MS = 6;         // upload strips for at most this long per task
@@ -171,6 +170,7 @@ export class Renderer {
     this.bgs = [];          // the last two paintings, so going between two layouts (assisted aiming) doesn't repaint
     this.job = null;        // the painting under way, same shape
     this.inbox = [];        // strips and textures from the worker, waiting to be uploaded
+    this.spare = null;      // an allocated table texture not in use: { tex, w, h }
   }
 
   resize(lay, dpr) {
@@ -199,15 +199,38 @@ export class Renderer {
     this.cueTex = texture(this.gl, paintCue(), true);
     if (this.ready) this.onReady?.();
   }
+  // Table textures are the canvas's size, and allocating one costs 30-80 ms on a throttled WebKit at 3x (software GL).
+  // So one is kept spare, made during launch while nothing shows, and textures are passed on rather than deleted:
+  // only a change in canvas size (rotation, a viewport resize) has to allocate during use.
+  allocate(w, h) {
+    const gl = this.gl, s = this.spare;
+    this.spare = null;
+    if (s && s.w === w && s.h === h) return s.tex;
+    if (s) gl.deleteTexture(s.tex);
+    const tex = gl.createTexture(), c = this.canvas;
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex);
+    // copying the canvas allocates it on the GPU; allocating it empty makes WebGL zero-fill it on the CPU
+    if (c.width === w && c.height === h) gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.RGB, 0, 0, w, h, 0);
+    else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, w, h, 0, gl.RGB, gl.UNSIGNED_BYTE, null);
+    for (const [k, v] of [[gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE], [gl.TEXTURE_MAG_FILTER, gl.LINEAR], [gl.TEXTURE_MIN_FILTER, gl.LINEAR]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
+    return tex;
+  }
+  release(b) {
+    if (!b?.tex) return;
+    if (this.spare) this.gl.deleteTexture(this.spare.tex);
+    this.spare = { tex: b.tex, w: b.w, h: b.h };
+  }
   dropJob() {
-    if (this.job?.tex) this.gl.deleteTexture(this.job.tex);
+    this.release(this.job);
     this.job = null;
   }
   finish(job) {
+    const first = !this.bg;
     this.job = null;
     this.bg = job;
     this.bgs = [job, ...this.bgs.filter((b) => b.key !== job.key)];
-    for (const b of this.bgs.splice(2)) this.gl.deleteTexture(b.tex);
+    for (const b of this.bgs.splice(2)) this.release(b);
+    if (first && painter()) setTimeout(() => { if (!this.spare && !this.lost) this.spare = { tex: this.allocate(job.w, job.h), w: job.w, h: job.h }; }, 0);   // before the screen shows
     if (this.ready) this.onReady?.();
   }
 
@@ -246,17 +269,8 @@ export class Renderer {
     }
     const job = this.job;
     if (!job || d.id !== job.id) return;
-    gl.activeTexture(gl.TEXTURE0);
-    if (!job.tex) {
-      job.tex = gl.createTexture();
-      gl.bindTexture(gl.TEXTURE_2D, job.tex);
-      const c = this.canvas;
-      // the canvas is this painting's size (a resize starts a new job), so copying it allocates the texture
-      if (c.width === job.w && c.height === job.h) gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.RGB, 0, 0, job.w, job.h, 0);
-      else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, job.w, job.h, 0, gl.RGB, gl.UNSIGNED_BYTE, null);
-      for (const [k, v] of [[gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE], [gl.TEXTURE_MAG_FILTER, gl.LINEAR], [gl.TEXTURE_MIN_FILTER, gl.LINEAR]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
-    }
-    gl.bindTexture(gl.TEXTURE_2D, job.tex);
+    if (!job.tex) job.tex = this.allocate(job.w, job.h);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, job.tex);
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);   // RGB rows aren't a multiple of 4 bytes
     gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, d.y, d.w, d.h, gl.RGB, gl.UNSIGNED_BYTE, new Uint8Array(d.px));
     gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);

@@ -101,9 +101,9 @@ class Bench {
     }, { t0, at, win });
     const b = blocking(r.gaps, r.t0, r.end);
     const row = { name, longest: Math.round(b.longest), tbt: Math.round(b.tbt), over50: b.over50, response: Math.round(r.frame - r.at), handled: Math.round(r.tapAt - r.at), ok,
-      after: Math.round(blocking(r.gaps, r.at, r.end).longest), launch: nav };
+      after: Math.round(blocking(r.gaps, r.at, r.end).longest), launch: nav, shown: nav ? Math.round(r.at) : undefined };
     this.rows.push(row);
-    console.log(`${ok ? '    ' : 'MISS'}  ${name.padEnd(44)} longest ${String(row.longest).padStart(5)} ms  TBT ${String(row.tbt).padStart(5)} ms  visible→tap painted ${String(row.response).padStart(5)} ms (click handled at +${row.handled})`);
+    console.log(`${ok ? '    ' : 'MISS'}  ${name.padEnd(44)} longest ${String(row.longest).padStart(5)} ms  TBT ${String(row.tbt).padStart(5)} ms  visible→tap painted ${String(row.response).padStart(5)} ms (click handled at +${row.handled})${nav ? `; menu shown at ${row.shown} ms, longest after ${row.after} ms` : ''}`);
     return row;
   }
 }

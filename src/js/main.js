@@ -108,7 +108,10 @@ function relayout() {
 }
 // The screen stays the launch colour until the table is painted (it's painted off the main thread, see render.js),
 // and while an update reloads the page, so a button is never on screen when a tap on it can't work.
-function reveal() { if (renderer.ready && !reloadingForUpdate) $('app').classList.remove('booting'); }
+// It shows a task after the first frame is drawn, so that frame's work (the first draw of the table) isn't in the
+// way of the first tap.
+let drawn = false;
+function reveal() { if (renderer.ready && drawn && !reloadingForUpdate) $('app').classList.remove('booting'); }
 let relayoutTimer = 0;
 function scheduleRelayout() {
   cancelAnimationFrame(relayoutTimer);
@@ -804,11 +807,10 @@ function registerSW() {
   if (!('serviceWorker' in navigator) || VERSION.startsWith('__')) return;   // unbuilt dev copy: no service worker
   navigator.serviceWorker.register('./sw.js', { scope: './', updateViaCache: 'none' }).then((reg) => {
     window.__swReg = reg;
+    const watch = (w) => w?.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) onUpdateReady(w); });
     if (reg.waiting && navigator.serviceWorker.controller) onUpdateReady(reg.waiting);
-    reg.addEventListener('updatefound', () => {
-      const w = reg.installing;
-      w?.addEventListener('statechange', () => { if (w.state === 'installed' && navigator.serviceWorker.controller) onUpdateReady(w); });
-    });
+    watch(reg.installing);   // one already downloading when the page started (a launch right after a deploy)
+    reg.addEventListener('updatefound', () => watch(reg.installing));
   }).catch(() => {});
   navigator.serviceWorker.addEventListener('controllerchange', () => { if (reloadingForUpdate) location.reload(); });
 }
@@ -818,6 +820,8 @@ function registerSW() {
 const launching = () => !renderer.ready;
 function onUpdateReady(worker) {
   pendingWorker = worker;
+  // a newer version finished while switching to the last one, which it has replaced: it's the one to switch to
+  if (reloadingForUpdate) { worker.postMessage({ type: 'SKIP_WAITING' }); return; }
   if (!(launching() && applyUpdateIfSafe())) $('update-pill').hidden = false;
 }
 function applyUpdateIfSafe() {
@@ -828,7 +832,7 @@ function applyUpdateIfSafe() {
   reloadingForUpdate = true;
   $('app').classList.add('booting');
   // If the new version never takes over, carry on with this one rather than leave a blank screen.
-  setTimeout(() => { reloadingForUpdate = false; reveal(); }, 5000);
+  setTimeout(() => { if (!reloadingForUpdate) return; reloadingForUpdate = false; reveal(); $('update-pill').hidden = false; }, 5000);
   pendingWorker.postMessage({ type: 'SKIP_WAITING' });
   return true;
 }
@@ -978,7 +982,7 @@ function boot() {
     return;
   }
   renderer.onRestore = requestRender;
-  renderer.onReady = () => { reveal(); requestRender(); };
+  renderer.onReady = () => { requestRender(); requestAnimationFrame(() => setTimeout(() => { drawn = true; reveal(); }, 0)); };
   setTimeout(boot2, 0);   // start-up in short tasks: WebGL and shaders here, the rest next, then sound and textures
 }
 function boot2() {

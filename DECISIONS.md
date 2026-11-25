@@ -262,3 +262,104 @@ If none of these fix it, record a session (section 4) and send the JSON.
 ## 12. What I'd build next / deliberately left out
 
 See the end of README.md.
+
+## 13. Buttons that didn't respond after a screen change
+
+Reported on the phone: after launch, starting or restarting a game and other screen changes, buttons ignored taps for a few seconds.
+
+**Short version:**
+- **Root cause:** the main thread was blocked at the moments the screen changed, so taps queued behind it.
+  - The table and room were painted with Canvas 2D and uploaded to WebGL in one main-thread task: 0.6–1.3 s on a 4× slowed WebKit at iPhone 3× resolution. That ran at launch, on every size change and when assisted aiming switched the layout.
+  - The first tap also created the audio context and synthesised every sound inside that tap.
+- **Update reloads:** an update could reload the page under a tap, which threw the tap away.
+- **What changed:** the painting runs in a worker and is uploaded in pieces of 6 ms or less. Start-up is split into short tasks, and the screen stays the launch colour until the table is ready. Audio is set up before the first tap. Updates reload only while nothing is on screen.
+- **Results:** see the tables below.
+
+### 13.1 How it was measured
+
+- **Engine:** WebKit (Safari's engine) in its Linux build, WPE 26.6, driven by Playwright 1.63 with real mouse input. There's no Mac or iPhone here, so nothing below ran on iOS.
+- **Slower CPU:** two models, both on Linux, each about 4× slower than this machine.
+  - **Whole process:** every thread of the page shares one core with three busy loops (4.2× slower, measured). This includes canvas rasterising, software WebGL and workers.
+  - **Main thread only:** only the main thread is slowed and its helper threads run free. That's what Chromium's CPU throttle does.
+  - The first model overstates rendering: here WebGL is software GL on the slowed core, where an iPhone uses its GPU. The second understates work handed to helper threads. Both are reported.
+- **Sizes:** iPhone SE (667×375 at 2×) and a standard iPhone (852×393 at 3×, with safe areas).
+- **Measures:**
+  - WebKit has no Long Tasks API, so a 4 ms timer loop stands in: a gap over 50 ms is a long task.
+  - **Longest task** and **total blocking time** (the sum over 50 ms) run from the tap that changes the screen to 1.5 s after the new screen's button appears.
+  - **Visible→tap** is the time from the frame in which the button first appears to the frame showing the result of tapping it the instant it showed. The tap is real input, through Playwright.
+- **Harness:** `tools/e2e/latency.cjs`. It covers every screen change in the brief, plus size changes and a waiting update at launch, at game over and on quitting to the menu.
+  - `verify.cjs` runs it unthrottled as a regression check (§7b). It fails on any task over 50 ms after a button shows, or on a tap handled more than 100 ms after its button appears.
+
+### 13.2 The leads, one by one
+
+1. **Full table repaint on the main thread: confirmed, the main cause.**
+   - At launch it was one task of 588 ms (SE) to 1303 ms (3×). That included the table paint, compiling shaders and the digit and cue textures.
+   - On a viewport size change it cost 220–833 ms, and on the assisted-aiming switch 275–1201 ms.
+   - The grain and noise passes were about 100–250 ms of it. Gradients and the texture upload were most of the rest. `shadowBlur` was small in this engine.
+2. **Title and game screens laying out differently: confirmed for assisted aiming only.**
+   - With assisted aiming, the game screen narrows the table for the panel, so the table was repainted on every trip between the menu and a game.
+   - Left-handed controls are a mirror image with the same table geometry, so they never repainted.
+   - No other setting changes the table's geometry.
+3. **Extra relayouts at 150 and 600 ms, and stale sizes: partly.**
+   - A relayout that doesn't change the size is cheap. One that does meant a full repaint, which is the 220–833 ms above.
+   - Every relayout also reassigned the canvas size, which reallocates its drawing buffer even at the same size. It now only does so when the size changes, though that had no measurable cost here.
+4. **Start-up work: confirmed.**
+   - The cost was the single boot task above.
+   - The first tap then created the AudioContext (about 175 ms in this engine) and synthesised all six fallback sounds (56–93 ms), inside the tap.
+   - Shader compiling (about 8 ms), storage and the service worker were small. The 14 recordings are fetched asynchronously.
+5. **The update reload during launch: confirmed, and wider than launch.**
+   - Updates also reloaded at game over. With an update waiting, tapping **Play again** 150 ms after it appeared was lost in the reload (measured).
+   - The 4-second "launch" window could reload under a tap on the menu. In my runs the new version hadn't finished installing inside that window, so that loss wasn't reproduced here.
+6. **Input gates** (`inputEnabled()`, `lockUntil`, `.locked`, `#app.booting`, sheet transitions, focus, a late `updateControls()`): **ruled out.**
+   - In every scenario, a tap the moment the button showed was handled and did what it says, so nothing discarded taps.
+   - The 0.7 s lock at a pass-and-play handover is deliberate and unchanged.
+
+**Also found:** when the game screen first shows, WebKit lays out and paints the newly visible controls. With no script running, that's a 45–88 ms task at 3× on the slowed engine, in the old code as in the new. Changing that CSS would change how the game looks, so it stays (§13.6).
+
+### 13.3 What changed
+
+- **The table is painted in a worker** (`js/paint.js`, the same `paintScene` on an `OffscreenCanvas`).
+  - The worker sends the picture back as raw RGB pixels, one strip of about 128k pixels per message. The main thread copies strips into the texture for at most 6 ms per task, so a tap waits at most one strip.
+  - The texture is one texture, drawn exactly as before.
+  - It's allocated by copying the canvas, a GPU-side copy. A spare is allocated during launch, and the texture of a painting dropped from the cache is passed on rather than deleted. So only a change of canvas size allocates while the app is in use.
+  - The last two paintings are kept, so going between the menu and a game with assisted aiming repaints once, not every time.
+  - While a repaint is under way, the old picture stays up, scaled so its table sits on the new table.
+  - The worker also paints the ball digits and the cue.
+  - Without `OffscreenCanvas` (iOS before 16.4), everything is painted on the main thread as before.
+- **Launch is split into short tasks.**
+  - The WebGL context and shaders come first, then the rest of start-up, then audio. Then come the digit, cue and table textures as the worker delivers them.
+  - The screen stays the launch colour until the table is ready **and** the first frame has been drawn, so no button is ever on screen before a tap on it can work.
+- **Audio** is created at start-up, suspended.
+  - Only the menu tick is synthesised; the other synthesised sounds are made only if their recordings fail to load.
+  - The recordings decode one after another, in short tasks.
+  - `resume()` stays inside the first tap, because iOS only starts audio there.
+- **Updates** reload only while nothing can be tapped: at launch before the menu shows, or on arriving at the menu, with the screen cleared at once.
+  - Game over no longer reloads.
+  - If a newer version arrives while the switch is happening, it's the one switched to.
+  - If no new version takes over within 5 s, the screen comes back with the "update ready" pill.
+
+### 13.4 Rejected alternatives
+
+- **Painting in time-sliced strips on the main thread:** the gradients, grain and noise didn't line up across the strip edges. Not pixel-identical.
+- **Keeping the painted table as an image between launches:** it still needs decoding and uploading, doesn't help size changes, and adds storage to keep in step.
+- **Giving the title screen the assisted-aiming layout, so it never repaints:** it changes how the title looks.
+- **Each strip as its own texture:**
+  - This avoids the big allocation, but the samples land a fraction of a texel differently, up to 24/255 on the rails' fine grain.
+  - Sampling at exact pixel centres differs too, because the original single texture doesn't sample exactly at texel centres.
+  - Only the original single-texture draw is pixel-identical.
+- **Sending the strips as ImageBitmaps:**
+  - It occasionally uploaded the wrong rows: the top strip showed part of another strip.
+  - It crashed WebKit's content process under repeated repaints.
+  - Raw pixel buffers have neither problem in the same stress test.
+- **Allocating the texture empty (`texImage2D` with no data):** WebGL zero-fills it on the CPU (12 MB at 3×, 18–48 ms on the main thread, slowed). A partly filled texture also cost a 91 ms lazy clear at its first draw.
+- **Keeping the 4-second launch window for updates:** a reload in it can land on a tap.
+- **Moving `AudioContext.resume()` out of the tap:** iOS only starts audio inside a user gesture.
+- **A spinner or a delay before buttons work:** that hides the problem rather than fixing it.
+
+### 13.5 Before and after
+
+<!-- RESULTS -->
+
+### 13.6 What's left
+
+<!-- LEFT -->
