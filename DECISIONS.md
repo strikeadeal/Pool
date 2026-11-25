@@ -364,11 +364,170 @@ Reported on the phone: after launch, starting or restarting a game and other scr
 
 ### 13.5 Before and after
 
-<!-- RESULTS -->
+**How to read the tables:**
+- All runs are WebKit 26.6 with the CPU slowed about 4×, three runs per configuration.
+- Each cell is **longest task / total blocking time / tap handled / result painted**, in ms, measured from the moment the button appears.
+- The longest task and tap handled are medians, with the worst of the three runs in brackets.
+- For a launch, the figure in parentheses is the longest task *after* the menu appeared. The tasks before that run while nothing can be tapped.
+- Update rows say whether a tap 150 ms after the button appeared survived.
+
+**In short (worst median row, before → after):**
+
+| Configuration | Longest task | Tap handled | Taps lost, 3 runs |
+|---|---|---|---|
+| SE (667×375 @2×), whole process slowed | 509 → **99** | 229 → **109** | 3 → **0** |
+| Standard (852×393 @3×), whole process slowed | 972 → **127** | 419 → **85** | 3 → **0** |
+| SE, main thread slowed | 770 → **134** | 356 → **63** | 3 → **0** |
+| Standard, main thread slowed | 952 → **156** | 467 → **165** | 3 → **0** |
+
+**SE (667×375 @2×), whole process slowed**
+
+| Screen change | Before | After |
+|---|---|---|
+| cold launch → title | 509 (509) [1268] / 757 / 229 [374] / 418 | 99 (99) [127] / 71 / 96 [104] / 118 |
+| title → game (Rack ’em) | 68 [71] / 21 / 72 [75] / 155 | 52 [63] / 2 / 73 [73] / 147 |
+| pause sheet closes (Resume) | 0 [21] / 0 / 23 [27] / 34 | 0 [0] / 0 / 26 [27] / 34 |
+| spin sheet closes (Done) | 22 [24] / 0 / 33 [35] / 50 | 0 [0] / 0 / 21 [21] / 35 |
+| restart from the pause sheet | 22 [23] / 0 / 24 [25] / 50 | 23 [31] / 0 / 26 [27] / 46 |
+| pause → settings sheet | 0 [0] / 0 / 9 [14] / 73 | 0 [0] / 0 / 12 [21] / 78 |
+| pause → how to play sheet | 0 [0] / 0 / 13 [13] / 63 | 0 [0] / 0 / 10 [13] / 64 |
+| game over sheet → Play again | 32 [33] / 0 / 16 [18] / 79 | 42 [45] / 0 / 9 [15] / 63 |
+| Play again → game | 34 [68] / 0 / 23 [29] / 46 | 39 [43] / 0 / 16 [29] / 50 |
+| quit to the title | 29 [46] / 0 / 22 [33] / 60 | 33 [37] / 0 / 22 [22] / 60 |
+| Continue → game | 30 [34] / 0 / 26 [30] / 92 | 29 [42] / 0 / 21 [29] / 81 |
+| title → setup-cpu sheet | 28 [44] / 0 / 19 [26] / 65 | 24 [35] / 0 / 22 [25] / 46 |
+| title → setup-pvp sheet | 36 [39] / 0 / 24 [27] / 75 | 22 [38] / 0 / 23 [27] / 41 |
+| title → help sheet | 0 [112] / 0 / 12 [128] / 63 | 0 [86] / 0 / 12 [27] / 74 |
+| title → stats sheet | 24 [51] / 0 / 8 [33] / 62 | 21 [29] / 0 / 11 [21] / 62 |
+| title → settings sheet | 0 [35] / 0 / 10 [23] / 58 | 0 [37] / 0 / 11 [17] / 50 |
+| viewport resizes on the title | 201 [241] / 151 / 177 [203] / 246 | 46 [74] / 0 / 23 [33] / 89 |
+| viewport resizes mid-game | 192 [215] / 142 / 11 [211] / 67 | 33 [38] / 0 / 14 [20] / 67 |
+| rotate back to landscape | 25 [37] / 0 / 22 [22] / 48 | 21 [26] / 0 / 19 [21] / 39 |
+| title → game (assisted aiming) | 214 [218] / 164 / 70 [78] / 145 | 69 [102] / 19 / 109 [122] / 346 |
+| quit to the title (assisted aiming) | 167 [186] / 230 / 23 [23] / 186 | 25 [33] / 0 / 22 [23] / 71 |
+| title → game (left-handed) | 53 [58] / 3 / 58 [61] / 138 | 36 [53] / 0 / 31 [63] / 125 |
+| quit to the title (left-handed) | 28 [29] / 0 / 21 [22] / 70 | 29 [36] / 0 / 21 [33] / 66 |
+| update waiting at launch → tap the menu | tap worked (3 of 3) | tap worked (3 of 3) |
+| update found during launch → tap the menu | tap worked (3 of 3) | tap worked (3 of 3) |
+| update waiting at game over → Play again | **tap lost** (3 of 3) | tap worked (3 of 3) |
+| update waiting, quit to menu → tap the menu | tap worked (3 of 3) | tap worked (3 of 3) |
+| **Worst** | 509 [1268] / 757 / 229 [374] / 418; 3 taps lost | 99 [127] / 71 / 109 [122] / 346; 0 taps lost |
+
+**Standard iPhone (852×393 @3×, with safe areas), whole process slowed**
+
+| Screen change | Before | After |
+|---|---|---|
+| cold launch → title | 972 (972) [1063] / 1437 / 324 [365] / 490 | 127 (36) [130] / 116 / 20 [113] / 221 |
+| title → game (Rack ’em) | 106 [144] / 56 / 57 [119] / 253 | 65 [84] / 24 / 56 [90] / 248 |
+| pause sheet closes (Resume) | 24 [48] / 0 / 26 [50] / 67 | 0 [41] / 0 / 26 [46] / 65 |
+| spin sheet closes (Done) | 23 [47] / 0 / 44 [48] / 54 | 0 [63] / 0 / 22 [66] / 74 |
+| restart from the pause sheet | 33 [50] / 0 / 45 [52] / 95 | 31 [52] / 0 / 36 [48] / 104 |
+| pause → settings sheet | 0 [63] / 0 / 11 [18] / 138 | 0 [0] / 0 / 10 [17] / 148 |
+| pause → how to play sheet | 0 [0] / 0 / 9 [16] / 136 | 0 [0] / 0 / 9 [10] / 132 |
+| game over sheet → Play again | 54 [108] / 5 / 15 [16] / 204 | 38 [54] / 0 / 16 [17] / 122 |
+| Play again → game | 26 [82] / 0 / 25 [55] / 119 | 25 [73] / 0 / 23 [26] / 92 |
+| quit to the title | 48 [81] / 0 / 28 [75] / 113 | 51 [53] / 1 / 16 [18] / 86 |
+| Continue → game | 28 [111] / 0 / 26 [112] / 167 | 23 [33] / 0 / 19 [37] / 157 |
+| title → setup-cpu sheet | 25 [91] / 0 / 19 [78] / 109 | 23 [31] / 0 / 10 [37] / 107 |
+| title → setup-pvp sheet | 74 [110] / 24 / 35 [83] / 176 | 76 [76] / 26 / 21 [26] / 97 |
+| title → help sheet | 106 [170] / 120 / 26 [88] / 231 | 79 [95] / 38 / 21 [25] / 139 |
+| title → stats sheet | 33 [91] / 0 / 20 [86] / 117 | 23 [26] / 0 / 12 [32] / 107 |
+| title → settings sheet | 27 [91] / 0 / 21 [75] / 112 | 0 [26] / 0 / 23 [26] / 106 |
+| viewport resizes on the title | 392 [426] / 376 / 397 [417] / 530 | 74 [76] / 41 / 85 [86] / 496 |
+| viewport resizes mid-game | 413 [521] / 363 / 419 [519] / 543 | 63 [72] / 13 / 74 [82] / 180 |
+| rotate back to landscape | 67 [134] / 17 / 24 [57] / 111 | 55 [55] / 5 / 20 [34] / 106 |
+| title → game (assisted aiming) | 487 [550] / 437 / 87 [128] / 246 | 66 [89] / 30 / 77 [112] / 464 |
+| quit to the title (assisted aiming) | 372 [400] / 636 / 34 [69] / 432 | 23 [58] / 0 / 28 [35] / 165 |
+| title → game (left-handed) | 40 [103] / 0 / 58 [111] / 225 | 56 [88] / 6 / 61 [96] / 235 |
+| quit to the title (left-handed) | 24 [88] / 0 / 33 [38] / 140 | 51 [55] / 1 / 23 [25] / 165 |
+| update waiting at launch → tap the menu | tap worked (3 of 3) | tap worked (3 of 3) |
+| update found during launch → tap the menu | tap worked (3 of 3) | tap worked (3 of 3) |
+| update waiting at game over → Play again | **tap lost** (3 of 3) | tap worked (3 of 3) |
+| update waiting, quit to menu → tap the menu | tap worked (3 of 3) | tap worked (3 of 3) |
+| **Worst** | 972 [1063] / 1437 / 419 [519] / 543; 3 taps lost | 127 [130] / 116 / 85 [113] / 496; 0 taps lost |
+
+**SE, main thread only slowed**
+
+| Screen change | Before | After |
+|---|---|---|
+| cold launch → title | 770 (770) [814] / 833 / 117 [122] / 180 | 134 (46) [142] / 144 / 56 [64] / 102 |
+| title → game (Rack ’em) | 60 [78] / 10 / 78 [107] / 109 | 34 [64] / 0 / 62 [79] / 104 |
+| pause sheet closes (Resume) | 25 [38] / 0 / 28 [36] / 36 | 0 [0] / 0 / 16 [20] / 27 |
+| spin sheet closes (Done) | 31 [34] / 0 / 32 [39] / 49 | 0 [0] / 0 / 16 [16] / 21 |
+| restart from the pause sheet | 35 [39] / 0 / 38 [38] / 41 | 0 [26] / 0 / 16 [17] / 30 |
+| pause → settings sheet | 0 [0] / 0 / 9 [11] / 52 | 0 [0] / 0 / 9 [12] / 46 |
+| pause → how to play sheet | 0 [0] / 0 / 10 [14] / 37 | 0 [0] / 0 / 11 [12] / 40 |
+| game over sheet → Play again | 60 [60] / 20 / 10 [13] / 81 | 25 [27] / 0 / 11 [16] / 52 |
+| Play again → game | 57 [60] / 48 / 37 [53] / 80 | 25 [44] / 0 / 31 [35] / 57 |
+| quit to the title | 57 [66] / 18 / 51 [57] / 102 | 43 [51] / 0 / 30 [30] / 72 |
+| Continue → game | 65 [68] / 37 / 36 [45] / 98 | 74 [76] / 24 / 43 [78] / 70 |
+| title → setup-cpu sheet | 66 [93] / 50 / 40 [68] / 145 | 34 [34] / 0 / 24 [32] / 49 |
+| title → setup-pvp sheet | 61 [65] / 33 / 39 [68] / 122 | 33 [47] / 0 / 27 [38] / 45 |
+| title → help sheet | 80 [80] / 95 / 44 [45] / 133 | 0 [23] / 0 / 8 [13] / 32 |
+| title → stats sheet | 68 [98] / 18 / 13 [39] / 93 | 0 [0] / 0 / 9 [10] / 31 |
+| title → settings sheet | 66 [97] / 47 / 9 [55] / 140 | 0 [0] / 0 / 13 [13] / 30 |
+| viewport resizes on the title | 350 [431] / 304 / 356 [485] / 422 | 29 [36] / 0 / 28 [32] / 61 |
+| viewport resizes mid-game | 345 [418] / 303 / 13 [16] / 76 | 29 [32] / 0 / 12 [13] / 47 |
+| rotate back to landscape | 52 [53] / 2 / 55 [58] / 67 | 0 [0] / 0 / 17 [21] / 26 |
+| title → game (assisted aiming) | 232 [249] / 182 / 79 [134] / 95 | 24 [58] / 0 / 47 [98] / 155 |
+| quit to the title (assisted aiming) | 183 [198] / 249 / 28 [28] / 204 | 25 [43] / 0 / 20 [30] / 43 |
+| title → game (left-handed) | 54 [61] / 4 / 65 [72] / 94 | 48 [59] / 0 / 63 [67] / 90 |
+| quit to the title (left-handed) | 0 [0] / 0 / 15 [24] / 34 | 0 [0] / 0 / 17 [17] / 29 |
+| update waiting at launch → tap the menu | tap worked (3 of 3) | tap worked (3 of 3) |
+| update found during launch → tap the menu | tap worked (3 of 3) | tap worked (3 of 3) |
+| update waiting at game over → Play again | **tap lost** (3 of 3) | tap worked (3 of 3) |
+| update waiting, quit to menu → tap the menu | tap worked (3 of 3) | tap worked (3 of 3) |
+| **Worst** | 770 [814] / 833 / 356 [485] / 422; 3 taps lost | 134 [142] / 144 / 63 [98] / 155; 0 taps lost |
+
+**Standard, main thread only slowed**
+
+| Screen change | Before | After |
+|---|---|---|
+| cold launch → title | 952 (952) [1024] / 1041 / 316 [317] / 334 | 133 (76) [148] / 235 / 75 [92] / 186 |
+| title → game (Rack ’em) | 115 [190] / 65 / 117 [199] / 153 | 156 [176] / 122 / 160 [197] / 229 |
+| pause sheet closes (Resume) | 0 [80] / 0 / 24 [81] / 39 | 0 [82] / 0 / 28 [81] / 48 |
+| spin sheet closes (Done) | 25 [86] / 0 / 36 [84] / 38 | 0 [78] / 0 / 25 [79] / 36 |
+| restart from the pause sheet | 0 [83] / 0 / 25 [83] / 60 | 22 [95] / 0 / 28 [101] / 65 |
+| pause → settings sheet | 0 [0] / 0 / 18 [26] / 83 | 0 [0] / 0 / 11 [23] / 75 |
+| pause → how to play sheet | 0 [0] / 0 / 12 [14] / 70 | 0 [0] / 0 / 13 [19] / 75 |
+| game over sheet → Play again | 36 [151] / 0 / 15 [16] / 115 | 73 [138] / 23 / 15 [32] / 147 |
+| Play again → game | 36 [130] / 0 / 38 [123] / 66 | 33 [141] / 0 / 37 [107] / 53 |
+| quit to the title | 52 [127] / 2 / 35 [115] / 82 | 60 [133] / 11 / 30 [132] / 87 |
+| Continue → game | 60 [154] / 10 / 38 [125] / 95 | 60 [134] / 10 / 38 [118] / 75 |
+| title → setup-cpu sheet | 26 [155] / 0 / 32 [137] / 89 | 28 [157] / 0 / 30 [126] / 117 |
+| title → setup-pvp sheet | 53 [193] / 3 / 29 [154] / 57 | 29 [160] / 0 / 28 [147] / 81 |
+| title → help sheet | 39 [149] / 0 / 42 [139] / 101 | 62 [173] / 22 / 30 [153] / 107 |
+| title → stats sheet | 35 [162] / 0 / 50 [132] / 116 | 26 [161] / 0 / 27 [160] / 68 |
+| title → settings sheet | 35 [163] / 0 / 20 [137] / 80 | 22 [148] / 0 / 37 [110] / 121 |
+| viewport resizes on the title | 460 [783] / 410 / 467 [783] / 538 | 96 [167] / 81 / 97 [155] / 211 |
+| viewport resizes mid-game | 440 [777] / 390 / 438 [787] / 505 | 83 [161] / 33 / 71 [165] / 156 |
+| rotate back to landscape | 23 [132] / 0 / 31 [111] / 56 | 26 [136] / 0 / 31 [96] / 52 |
+| title → game (assisted aiming) | 433 [440] / 383 / 103 [125] / 140 | 110 [227] / 60 / 165 [302] / 301 |
+| quit to the title (assisted aiming) | 293 [330] / 470 / 35 [38] / 320 | 22 [33] / 0 / 21 [33] / 77 |
+| title → game (left-handed) | 73 [82] / 23 / 56 [75] / 119 | 60 [115] / 10 / 90 [139] / 156 |
+| quit to the title (left-handed) | 22 [28] / 0 / 29 [48] / 67 | 0 [28] / 0 / 26 [29] / 68 |
+| update waiting at launch → tap the menu | tap worked (3 of 3) | tap worked (3 of 3) |
+| update found during launch → tap the menu | tap worked (3 of 3) | tap worked (3 of 3) |
+| update waiting at game over → Play again | **tap lost** (3 of 3) | tap worked (3 of 3) |
+| update waiting, quit to menu → tap the menu | tap worked (3 of 3) | tap worked (3 of 3) |
+| **Worst** | 952 [1024] / 1041 / 467 [787] / 538; 3 taps lost | 156 [227] / 235 / 165 [302] / 301; 0 taps lost |
+
+**Reading it:**
+- **The blocking repaints are gone.**
+  - Launch: 0.5–1.0 s median before, 99–134 ms after, and at 3× most of that runs before the menu appears.
+  - Size changes: 0.2–0.46 s before, 29–96 ms after.
+  - The assisted-aiming switch: 0.21–0.49 s before, 24–110 ms after.
+- **The update reload no longer loses a tap.**
+- **Most screen changes now have no task over 50 ms.**
+- **Where tasks over 50 ms remain**, they are WebKit's own style, layout and paint of a screen shown for the first time (no script in them), or the work the tap itself starts. The old code has them too.
+- **The target isn't met everywhere.** With only the main thread slowed at 3×, title → game had medians of 156 ms (task) and +160 ms (tap), and 110 ms and +165 ms with assisted aiming.
+  - These rows vary widely between runs: the old code gave 47–190 ms on the same row.
+  - Profiled on its own, the same change gave 24–49 ms with the tap handled at +59–73 ms.
+  - The cost is WebKit painting the game screen for the first time (§13.6). I couldn't remove it without changing how the controls look.
 
 ### 13.6 What's left
 
-- **The first paint of the game controls (45–90 ms at 3× on the slowed engine, the same as before).**
+- **The first paint of the game screen** (on the slowed engine, about 50 ms at SE and up to 190 ms at 3× with only the main thread slowed; the old code ranged 47–190 ms on the same row).
   - When a game first starts, WebKit styles, lays out and paints the controls that were hidden on the title. No script is involved.
   - Avoiding it would mean changing how the controls are drawn (fewer shadows and gradients), which would change the look, so I left it.
   - It's a single task on the slowed engine: a tap in it waits, but isn't lost.

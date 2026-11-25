@@ -59,7 +59,16 @@ Measured in WebKit with the CPU slowed about 4×, at SE and standard (3×) sizes
 
 For each, the tap lands the moment the new screen's button appears. The full before/after tables are in DECISIONS.md §13.5. In short:
 
-<!-- VERIFY-SUMMARY -->
+| Configuration | Longest task, worst median row | Tap handled, worst median row | Taps lost, 3 runs |
+|---|---|---|---|
+| SE (667×375 @2×), whole process slowed | 509 → **99** | 229 → **109** | 3 → **0** |
+| Standard (852×393 @3×), whole process slowed | 972 → **127** | 419 → **85** | 3 → **0** |
+| SE, main thread slowed | 770 → **134** | 356 → **63** | 3 → **0** |
+| Standard, main thread slowed | 952 → **156** | 467 → **165** | 3 → **0** |
+
+- Before → after. The one tap lost in each run of the old code was **Play again** with an update waiting.
+- Where the target (no task over 50 ms, tap handled within 100 ms) still isn't met, DECISIONS.md §13.5–13.6 says why.
+- **The main miss** is the first paint of the game screen at 3× with only the main thread slowed, which varies a lot between runs here.
 
 `verify.cjs` keeps this as a regression check (§7b), unthrottled. In WebKit it fails on a task over 50 ms after a button shows, on a tap handled more than 100 ms after its button appears, or on a lost tap. In Chromium it fails only on a lost tap: Chromium never showed the bug, and its headless software GL adds random 60–180 ms rendering tasks, in the old code too.
 
