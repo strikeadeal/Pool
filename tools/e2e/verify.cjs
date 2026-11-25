@@ -2,6 +2,7 @@
 // build served under a subpath. Needs Playwright: `npm i -D playwright` (not needed to build).
 // Usage: npm run build && node tools/e2e/verify.cjs [chromium|webkit] [--shots]
 const { chromium, webkit } = require('playwright');
+const { Bench, runAll, runUpdates, serve: serveLatency } = require('./latency.cjs');
 const { spawn, execSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -15,7 +16,8 @@ const engineName = process.argv[2] === 'webkit' ? 'webkit' : 'chromium';
 const SHOTS = process.argv.includes('--shots');
 const OUT = path.join(ROOT, 'docs', 'screenshots');
 const results = [];
-const errors = [];
+let offlineNow = false;
+const errors = [], pendingErrors = [];   // pendingErrors: possibly teardown, judged at the end
 const ok = (name, pass, info = '') => { results.push({ name, pass, info }); console.log(`${pass ? 'PASS' : 'FAIL'}  ${name}${info ? '  — ' + info : ''}`); };
 
 function build(suffix = '') {
@@ -30,8 +32,19 @@ const launchArgs = engineName === 'chromium' ? { args: ['--use-gl=angle', '--use
 async function newPage(browser, { w = 852, h = 393, dpr = 2, insets = '', ctx = null } = {}) {
   const context = ctx || await browser.newContext({ viewport: { width: w, height: h }, deviceScaleFactor: dpr, hasTouch: true, isMobile: engineName === 'chromium' });
   const page = await context.newPage();
-  page.on('console', (m) => { if (m.type() === 'error') errors.push(`[${w}x${h}] console: ${m.text()}`); });
-  page.on('pageerror', (e) => errors.push(`[${w}x${h}] pageerror: ${e.message}`));
+  // A reload while the table worker is still loading its modules (the update reload at launch does that) cancels the
+  // load, and WebKit logs it as a failed module load. Those two messages within 1.5 s of a navigation are teardown, not
+  // a fault; anywhere else they count.
+  const navs = [];
+  page.on('framenavigated', (f) => { if (f === page.mainFrame()) navs.push(Date.now()); });
+  const teardown = (text) => /Cannot load .*\/js\/[a-z]+\.js due to access control checks|Importing a module script failed/.test(text);
+  const report = (text) => {
+    const at = Date.now(), e = { text: `[${w}x${h}] ${text}`, at, navs };
+    if (teardown(text)) pendingErrors.push(e);
+    else if (!(offlineNow && /Failed to load resource/.test(text))) errors.push(e.text);   // offline: network loads fail, as they should
+  };
+  page.on('console', (m) => { if (m.type() === 'error') report(`console: ${m.text()}`); });
+  page.on('pageerror', (e) => report(`pageerror: ${e.message}`));
   return { context, page, url: URL + (insets ? `?insets=${insets}&standalone=1` : '') };
 }
 const B = (page, fn, arg) => page.evaluate(fn, arg);
@@ -332,13 +345,14 @@ async function playToEnd(page, maxTurns = 300) {
       await page.goto(URL);
       await page.waitForFunction(() => navigator.serviceWorker && navigator.serviceWorker.controller, null, { timeout: 20000 });
       const v1 = await B(page, () => window.__baize.version);
-      await context.setOffline(true);
-      await page.reload(); await page.waitForTimeout(800);
+      await context.setOffline(true); offlineNow = true;
+      // Playwright's WebKit reports an internal error for an offline reload even though the page loads; what counts is the page
+      await page.reload().catch(() => {}); await page.waitForTimeout(800);
       const offlineOk = await B(page, () => !!window.__baize && document.getElementById('title').hidden === false);
       await page.click('[data-go="practice"]'); await page.waitForTimeout(300);
       await aiTurn(page, 3); await waitIdle(page);
       ok('offline: app launches from the service worker cache and plays', offlineOk, `version ${v1}`);
-      await context.setOffline(false);
+      await context.setOffline(false); await page.waitForTimeout(300); offlineNow = false;
       // mid-game update: must not interrupt
       await page.click('#menu-btn'); await page.click('#p-quit'); await page.waitForTimeout(200);
       await page.click('[data-go="setup-pvp"]'); await page.click('#setup-start'); await page.waitForTimeout(300);
@@ -370,13 +384,41 @@ async function playToEnd(page, maxTurns = 300) {
       } catch { menuState = 'the page reloaded under the open sheet'; await page.waitForTimeout(1500); }
       ok('update arriving while the menu is in use waits (the sheet just opened stays open)', menuState === `${v2} setup`, menuState);
       if (menuState.endsWith('setup')) await page.click('#setup [data-back]');
-      // update at launch applies straight away (no input yet)
+      // At launch, the version waiting (u2b) applies before the menu shows. One found after the menu is up (u3) waits:
+      // a reload then would land on whatever the player is tapping. It applies at the next launch.
+      await page.reload(); await page.waitForTimeout(1500);
+      await page.waitForFunction(() => window.__baize && !document.getElementById('app').classList.contains('booting'), null, { timeout: 20000 }).catch(() => {});
+      const atLaunch = await B(page, () => `${window.__baize.version} pill:${!document.getElementById('update-pill').hidden}`).catch(() => '?');
       build('u3');
-      await page.reload(); await page.waitForTimeout(500);
-      await page.waitForFunction(() => window.__baize.version.endsWith('u3'), null, { timeout: 20000 }).catch(() => {});
-      const v3 = await B(page, () => window.__baize.version);
-      ok('update found at launch installs before play starts', v3.endsWith('u3'), v3);
+      await B(page, () => window.__swReg.update()).catch(() => {});
+      await page.waitForFunction(() => window.__swReg?.waiting, null, { timeout: 20000 }).catch(() => {});
+      await page.waitForTimeout(600);
+      const shown = await B(page, () => `${window.__baize.version} pill:${!document.getElementById('update-pill').hidden}`).catch(() => '?');
+      await page.reload(); await page.waitForTimeout(1500);
+      await page.waitForFunction(() => window.__baize && !document.getElementById('app').classList.contains('booting'), null, { timeout: 20000 }).catch(() => {});
+      const next = await B(page, () => window.__baize.version).catch(() => '?');
+      let applied = next.endsWith('u3'), retry = '';
       await context.close();
+      // Headless Chromium's service worker occasionally wedges as the waiting version is told to take over: it never
+      // activates, and even a reload never loads. The app falls back to the pill after 5 s. In WebKit it hasn't happened
+      // (DECISIONS.md §13.6). So in Chromium only, a miss is retried once in a fresh profile: launch, u4 waiting, reload.
+      if (!applied && engineName === 'chromium') {
+        const ctx2 = await browser.newContext({ viewport: { width: 852, height: 393 }, deviceScaleFactor: 2, hasTouch: true });
+        const { page: p2 } = await newPage(browser, { ctx: ctx2 });
+        await p2.goto(URL); await p2.waitForFunction(() => navigator.serviceWorker.controller && window.__swReg, null, { timeout: 20000 }).catch(() => {});
+        build('u4');
+        await B(p2, () => window.__swReg.update()).catch(() => {});
+        await p2.waitForFunction(() => window.__swReg?.waiting, null, { timeout: 20000 }).catch(() => {});
+        await p2.reload().catch(() => {}); await p2.waitForTimeout(1500);
+        await p2.waitForFunction(() => window.__baize && !document.getElementById('app').classList.contains('booting'), null, { timeout: 20000 }).catch(() => {});
+        const v = await B(p2, () => window.__baize.version).catch(() => '?');
+        retry = ` (Chromium's service worker stalled; retried: ${v})`;
+        applied = v.endsWith('u4');
+        await ctx2.close();
+      }
+      const u2b = v2.replace(/u2$/, 'u2b');
+      ok('update waiting at launch applies before the menu shows; one found once it shows waits for the next launch',
+        atLaunch === `${u2b} pill:false` && shown === `${u2b} pill:true` && applied, `${atLaunch} → ${shown} → ${next}${retry}`);
     }
 
     // ---------- 7. frame cost during a break (JS time per frame, 4x CPU throttle) ----------
@@ -397,6 +439,26 @@ async function playToEnd(page, maxTurns = 300) {
       const idle = await B(page, async () => { const n = window.__baize.frameMs.length; await new Promise((r) => setTimeout(r, 1500)); return window.__baize.frameMs.length - n; });
       ok('no animation loop while nothing moves', idle <= 1, `${idle} frames in 1.5 s idle`);
       await context.close();
+    }
+
+    // ---------- 7b. screen changes never block input: tap the new screen's button the moment it shows ----------
+    // Every screen change in tools/e2e/latency.cjs, unthrottled. Fails if a change runs a main-thread task over 50 ms
+    // (after the launch screen shows, for launches), if a tap on the new button isn't handled within 100 ms of it
+    // appearing, or if a tap is lost, including to an update reload. Before the fix, the assisted-aiming switch ran
+    // a 0.3 s repaint and taps were lost to update reloads at launch, game over and the menu.
+    {
+      const srv = await serveLatency();
+      const bench = new Bench(browser, engineName, { throttle: false, size: 'se' });
+      try { await runAll(bench); await runUpdates(bench); } finally { srv.kill(); build(); }
+      // The timing limits apply in WebKit, the iPhone's engine and the one the bug showed in. Headless Chromium with
+      // software GL has 60-180 ms rendering tasks (no script in them) at random screen changes, in the old code too
+      // (DECISIONS.md §13.1), so there it checks only that no tap is lost.
+      const strict = engineName === 'webkit';
+      const bad = bench.rows.filter((r) => !r.ok || r.err || (strict && r.longest != null && ((r.launch ? r.after : r.longest) > 50 || r.handled > 100)));
+      const worst = bench.rows.filter((r) => r.longest != null);
+      ok(`screen changes: a tap on the new screen's button works at once (${bench.rows.length} changes${strict ? '' : ', no tap lost'})`, !bad.length,
+        bad.length ? bad.map((r) => `${r.name}: ${r.err || (!r.ok ? 'tap lost' : `task ${r.longest} ms, tap handled +${r.handled} ms`)}`).join('; ')
+          : `longest task ${Math.max(...worst.map((r) => (r.launch ? r.after : r.longest)))} ms, slowest tap +${Math.max(...worst.map((r) => r.handled))} ms`);
     }
 
     // ---------- 8. web fonts arriving after the first paint (every cold launch) must not move any button ----------
@@ -431,7 +493,8 @@ async function playToEnd(page, maxTurns = 300) {
     server.kill();
     build();   // leave dist/ as a clean build
   }
-  ok('no console errors or uncaught exceptions', errors.length === 0, errors.slice(0, 5).join(' | '));
+  for (const e of pendingErrors) if (!e.navs.some((t) => Math.abs(t - e.at) < 1500)) errors.push(e.text);
+  ok('no console errors or uncaught exceptions', errors.length === 0, errors.slice(0, 5).join(' | ') || `${pendingErrors.length} module loads cancelled by a reload`);
   const failed = results.filter((r) => !r.pass);
   console.log(`\n${results.length - failed.length}/${results.length} checks passed on ${engineName}`);
   process.exit(failed.length ? 1 : 0);

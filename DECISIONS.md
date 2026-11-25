@@ -21,7 +21,7 @@ Each entry: what I chose, what I considered, why. Written before the code and ke
 - **Build step exists only to make updates safe.** `tools/build.mjs` copies `src/` to `dist/` and computes a SHA-256 for every asset. It writes the file list and a content-derived version into `sw.js`.
   - Any change to any file changes `sw.js`, so installed copies always see the update.
   - Hand-bumping a version string was rejected: forgetting to bump it once means installed copies never update.
-- **When an update applies:** straight away only at launch before any touch, or on arriving at the menu or the game-over screen. One that finishes downloading while someone is using the app, menus included, waits and shows an "update ready" pill.
+- **When an update applies:** only while nothing on screen can be tapped. That's at launch before the menu has appeared (a version already downloaded is found within milliseconds), or on arriving at the menu, with the screen cleared the moment the reload starts. One that finishes downloading any later waits and shows an "update ready" pill. See §13 for why the launch window and the game-over screen were dropped.
   - It used to reload the moment the download finished whenever the menu was showing. That landed on taps: someone opened a sheet from the menu, the page reloaded and the sheet vanished, so the button seemed to need pressing twice. Every deploy did this once per phone.
 - **Deploy:** a GitHub Actions workflow runs the tests, builds and deploys `dist/` to Pages on every push to `main`.
   - One-time setting: Settings → Pages → Source: **GitHub Actions**.
@@ -137,7 +137,7 @@ The base is the **WPA World Standardised Rules for 8-ball** (2025 edition, verif
 ## 6. Visuals, sound, haptics
 
 - **Rendering:**
-  - **Table:** the background and table (wood grain, cloth noise, lamp falloff, pockets, diamonds) are painted once per resize with Canvas 2D into a texture.
+  - **Table:** the background and table (wood grain, cloth noise, lamp falloff, pockets, diamonds) are painted once per resize with Canvas 2D into a texture. The painting runs in a worker on an `OffscreenCanvas` and is uploaded in strips (§13); without `OffscreenCanvas` (iOS before 16.4) it's painted on the main thread as before.
   - **Balls:** each ball is a quad. The fragment shader computes the sphere normal, rotates it by the ball's orientation and shades the stripe band, number disc and glyph analytically, with two lamp highlights and a cloth-coloured rim reflection. There's no texture stretching, and numbers stay crisp at every size.
   - **Extras:** shadows are soft sprites. Potted balls sink and fade.
 - **Sound:** recorded, not synthesised. Players said the original synthesised sounds didn't sound like pool.
@@ -218,7 +218,7 @@ The base is the **WPA World Standardised Rules for 8-ball** (2025 edition, verif
    - The tuning advice is in section 10.
 3. **Smooth animation**
    - WebGL with a static table texture, no CSS filters, no per-frame DOM and no layout thrash.
-   - The scene isn't rebuilt at key moments: textures are made at start-up and on resize only, and the WebGL context is reused.
+   - The scene isn't rebuilt at key moments: textures are made at start-up and on resize only (off the main thread, §13), and the WebGL context is reused.
    - The render loop sleeps when idle, and the sim is time-sliced.
 4. **Saved data**
    - Keys are versioned (`baize.v1.game`, `baize.v1.stats`, `baize.v1.settings`).
@@ -262,3 +262,292 @@ If none of these fix it, record a session (section 4) and send the JSON.
 ## 12. What I'd build next / deliberately left out
 
 See the end of README.md.
+
+## 13. Buttons that didn't respond after a screen change
+
+Reported on the phone: after launch, starting or restarting a game and other screen changes, buttons ignored taps for a few seconds.
+
+**Short version:**
+- **Root cause:** the main thread was blocked at the moments the screen changed, so taps queued behind it.
+  - The table and room were painted with Canvas 2D and uploaded to WebGL in one main-thread task: 0.6–1.3 s on a 4× slowed WebKit at iPhone 3× resolution. That ran at launch, on every size change and when assisted aiming switched the layout.
+  - The first tap also created the audio context and synthesised every sound inside that tap.
+- **Update reloads:** an update could reload the page under a tap, which threw the tap away.
+- **What changed:** the painting runs in a worker and is uploaded in pieces of 6 ms or less. Start-up is split into short tasks, and the screen stays the launch colour until the table is ready. Audio is set up before the first tap. Updates reload only while nothing is on screen.
+- **Results:** see the tables below.
+
+### 13.1 How it was measured
+
+- **Engine:** WebKit (Safari's engine) in its Linux build, WPE 26.6, driven by Playwright 1.63 with real mouse input. There's no Mac or iPhone here, so nothing below ran on iOS.
+- **Slower CPU:** two models, both on Linux, each about 4× slower than this machine.
+  - **Whole process:** every thread of the page shares one core with three busy loops (4.2× slower, measured). This includes canvas rasterising, software WebGL and workers.
+  - **Main thread only:** only the main thread is slowed and its helper threads run free. That's what Chromium's CPU throttle does.
+  - The first model overstates rendering: here WebGL is software GL on the slowed core, where an iPhone uses its GPU. The second understates work handed to helper threads. Both are reported.
+- **Sizes:** iPhone SE (667×375 at 2×) and a standard iPhone (852×393 at 3×, with safe areas).
+- **Measures:**
+  - WebKit has no Long Tasks API, so a 4 ms timer loop stands in: a gap over 50 ms is a long task.
+  - **Longest task** and **total blocking time** (the sum over 50 ms) run from the tap that changes the screen to 1.5 s after the new screen's button appears.
+  - **Tap handled** is the time from the frame in which the button first appears to its click handler running, for a tap sent the instant it showed. **Result painted** runs to the frame that shows the result. The tap is real input, through Playwright, so both include the harness's own reaction time, about 10–30 ms.
+  - The longest task covers the whole window, so it includes work the tap itself starts, such as opening the next sheet for the first time. A row can show a long task that didn't delay its tap. Tap handled is the direct measure of the complaint.
+  - Each configuration ran three times, because single runs in this container varied by tens of milliseconds and sometimes far more. The tables show the median, with the worst single run in brackets.
+- **Harness:** `tools/e2e/latency.cjs`. It covers every screen change in the brief, plus size changes and a waiting update at launch, at game over and on quitting to the menu.
+  - `verify.cjs` runs it unthrottled as a regression check (§7b). In WebKit, it fails on any task over 50 ms after a button shows, on a tap handled more than 100 ms after its button appears, or on a lost tap. In Chromium it fails only on a lost tap.
+  - The reason for the split: Chromium doesn't show the bug, because its canvas painting is fast. But headless Chromium with software GL has 60–180 ms rendering tasks, with no script in them, at random screen changes. They appear in the old code as well: game over was 108 ms in the old code and 33 ms in the new, and the stats sheet 33 ms and 107 ms.
+  - A button counts as shown when it's visible **and** on top at its centre. Without the second condition, the harness tapped the menu button through the rotate prompt in the frame before the relayout removed it.
+
+### 13.2 The leads, one by one
+
+1. **Full table repaint on the main thread: confirmed, the main cause.**
+   - At launch it was one task of 588 ms (SE) to 1303 ms (3×). That included the table paint, compiling shaders and the digit and cue textures.
+   - On a viewport size change it cost 220–833 ms, and on the assisted-aiming switch 275–1201 ms.
+   - The grain and noise passes were about 100–250 ms of it. Gradients and the texture upload were most of the rest. `shadowBlur` was small in this engine.
+2. **Title and game screens laying out differently: confirmed for assisted aiming only.**
+   - With assisted aiming, the game screen narrows the table for the panel, so the table was repainted on every trip between the menu and a game.
+   - Left-handed controls are a mirror image with the same table geometry, so they never repainted.
+   - No other setting changes the table's geometry.
+3. **Extra relayouts at 150 and 600 ms, and stale sizes: partly.**
+   - A relayout that doesn't change the size is cheap. One that does meant a full repaint, which is the 220–833 ms above.
+   - Every relayout also reassigned the canvas size, which reallocates its drawing buffer even at the same size. It now only does so when the size changes, though that had no measurable cost here.
+4. **Start-up work: confirmed.**
+   - The cost was the single boot task above.
+   - The first tap then created the AudioContext (about 175 ms in this engine) and synthesised all six fallback sounds (56–93 ms), inside the tap.
+   - Shader compiling (about 8 ms), storage and the service worker were small. The 14 recordings are fetched asynchronously.
+5. **The update reload during launch: confirmed, and wider than launch.**
+   - Updates also reloaded at game over. With an update waiting, tapping **Play again** 150 ms after it appeared was lost in the reload (measured).
+   - The 4-second "launch" window could reload under a tap on the menu. In my runs the new version hadn't finished installing inside that window, so that loss wasn't reproduced here.
+6. **Input gates** (`inputEnabled()`, `lockUntil`, `.locked`, `#app.booting`, sheet transitions, focus, a late `updateControls()`): **ruled out.**
+   - In every scenario, a tap the moment the button showed was handled and did what it says, so nothing discarded taps.
+   - The 0.7 s lock at a pass-and-play handover is deliberate and unchanged.
+
+**Also found:** when the game screen first shows, WebKit lays out and paints the newly visible controls. With no script running, that's a 45–88 ms task at 3× on the slowed engine, in the old code as in the new. Changing that CSS would change how the game looks, so it stays (§13.6).
+
+### 13.3 What changed
+
+- **The table is painted in a worker** (`js/paint.js`, the same `paintScene` on an `OffscreenCanvas`).
+  - The worker sends the picture back as raw RGB pixels, one strip of about 128k pixels per message. The main thread copies strips into the texture for at most 6 ms per task, so a tap waits at most one strip.
+  - The texture is one texture, drawn exactly as before.
+  - It's allocated by copying the canvas, a GPU-side copy. A spare is allocated during launch, and the texture of a painting dropped from the cache is passed on rather than deleted. So only a change of canvas size allocates while the app is in use.
+  - The last two paintings are kept, so going between the menu and a game with assisted aiming repaints once, not every time.
+  - While a repaint is under way, the old picture stays up, scaled so its table sits on the new table.
+  - The worker also paints the ball digits and the cue.
+  - Without `OffscreenCanvas` (iOS before 16.4), everything is painted on the main thread as before.
+- **Launch is split into short tasks.**
+  - The WebGL context and shaders come first, then the rest of start-up, then audio. Then come the digit, cue and table textures as the worker delivers them.
+  - The screen stays the launch colour until the table is ready, the first frame has been drawn **and** the service worker has said whether an update is waiting. So no button is ever on screen before a tap on it can work, and an update that's already downloaded is applied before the menu shows.
+    - The service-worker check takes milliseconds when a version is installed, as `register()` resolves locally then. On a first visit there's nothing to update, so it doesn't wait. A 1 s cap stops a stuck registration keeping the screen blank.
+    - Before this, in Chromium the menu could appear before the registration resolved, and the waiting update was left for the next launch.
+- **Audio** is created at start-up, suspended.
+  - Only the menu tick is synthesised; the other synthesised sounds are made only if their recordings fail to load.
+  - The recordings decode one after another, in short tasks.
+  - `resume()` stays inside the first tap, because iOS only starts audio there.
+- **Updates** reload only while nothing can be tapped: at launch before the menu shows, or on arriving at the menu, with the screen cleared at once.
+  - Game over no longer reloads.
+  - If a newer version arrives while the switch is happening, it's the one switched to.
+  - If no new version takes over within 5 s, the screen comes back with the "update ready" pill.
+
+### 13.4 Rejected alternatives
+
+- **Painting in time-sliced strips on the main thread:** the gradients, grain and noise didn't line up across the strip edges. Not pixel-identical.
+- **Keeping the painted table as an image between launches:** it still needs decoding and uploading, doesn't help size changes, and adds storage to keep in step.
+- **Giving the title screen the assisted-aiming layout, so it never repaints:** it changes how the title looks.
+- **Each strip as its own texture:**
+  - This avoids the big allocation, but the samples land a fraction of a texel differently, up to 24/255 on the rails' fine grain.
+  - Sampling at exact pixel centres differs too, because the original single texture doesn't sample exactly at texel centres.
+  - Only the original single-texture draw is pixel-identical.
+- **Sending the strips as ImageBitmaps:**
+  - It occasionally uploaded the wrong rows: the top strip showed part of another strip.
+  - It crashed WebKit's content process under repeated repaints.
+  - Raw pixel buffers have neither problem in the same stress test.
+- **Allocating the texture empty (`texImage2D` with no data):** WebGL zero-fills it on the CPU (12 MB at 3×, 18–48 ms on the main thread, slowed). A partly filled texture also cost a 91 ms lazy clear at its first draw.
+- **Keeping the 4-second launch window for updates:** a reload in it can land on a tap.
+- **Moving `AudioContext.resume()` out of the tap:** iOS only starts audio inside a user gesture.
+- **A spinner or a delay before buttons work:** that hides the problem rather than fixing it.
+
+### 13.5 Before and after
+
+**How to read the tables:**
+- All runs are WebKit 26.6 with the CPU slowed about 4×, three runs per configuration.
+- Each cell is **longest task / total blocking time / tap handled / result painted**, in ms, measured from the moment the button appears.
+- The longest task and tap handled are medians, with the worst of the three runs in brackets.
+- For a launch, the figure in parentheses is the longest task *after* the menu appeared. The tasks before that run while nothing can be tapped.
+- Update rows say whether a tap 150 ms after the button appeared survived.
+
+**In short (worst median row, before → after):**
+
+| Configuration | Longest task | Tap handled | Taps lost, 3 runs |
+|---|---|---|---|
+| SE (667×375 @2×), whole process slowed | 509 → **99** | 229 → **109** | 3 → **0** |
+| Standard (852×393 @3×), whole process slowed | 972 → **127** | 419 → **85** | 3 → **0** |
+| SE, main thread slowed | 770 → **134** | 356 → **63** | 3 → **0** |
+| Standard, main thread slowed | 952 → **156** | 467 → **165** | 3 → **0** |
+
+**SE (667×375 @2×), whole process slowed**
+
+| Screen change | Before | After |
+|---|---|---|
+| cold launch → title | 509 (509) [1268] / 757 / 229 [374] / 418 | 99 (99) [127] / 71 / 96 [104] / 118 |
+| title → game (Rack ’em) | 68 [71] / 21 / 72 [75] / 155 | 52 [63] / 2 / 73 [73] / 147 |
+| pause sheet closes (Resume) | 0 [21] / 0 / 23 [27] / 34 | 0 [0] / 0 / 26 [27] / 34 |
+| spin sheet closes (Done) | 22 [24] / 0 / 33 [35] / 50 | 0 [0] / 0 / 21 [21] / 35 |
+| restart from the pause sheet | 22 [23] / 0 / 24 [25] / 50 | 23 [31] / 0 / 26 [27] / 46 |
+| pause → settings sheet | 0 [0] / 0 / 9 [14] / 73 | 0 [0] / 0 / 12 [21] / 78 |
+| pause → how to play sheet | 0 [0] / 0 / 13 [13] / 63 | 0 [0] / 0 / 10 [13] / 64 |
+| game over sheet → Play again | 32 [33] / 0 / 16 [18] / 79 | 42 [45] / 0 / 9 [15] / 63 |
+| Play again → game | 34 [68] / 0 / 23 [29] / 46 | 39 [43] / 0 / 16 [29] / 50 |
+| quit to the title | 29 [46] / 0 / 22 [33] / 60 | 33 [37] / 0 / 22 [22] / 60 |
+| Continue → game | 30 [34] / 0 / 26 [30] / 92 | 29 [42] / 0 / 21 [29] / 81 |
+| title → setup-cpu sheet | 28 [44] / 0 / 19 [26] / 65 | 24 [35] / 0 / 22 [25] / 46 |
+| title → setup-pvp sheet | 36 [39] / 0 / 24 [27] / 75 | 22 [38] / 0 / 23 [27] / 41 |
+| title → help sheet | 0 [112] / 0 / 12 [128] / 63 | 0 [86] / 0 / 12 [27] / 74 |
+| title → stats sheet | 24 [51] / 0 / 8 [33] / 62 | 21 [29] / 0 / 11 [21] / 62 |
+| title → settings sheet | 0 [35] / 0 / 10 [23] / 58 | 0 [37] / 0 / 11 [17] / 50 |
+| viewport resizes on the title | 201 [241] / 151 / 177 [203] / 246 | 46 [74] / 0 / 23 [33] / 89 |
+| viewport resizes mid-game | 192 [215] / 142 / 11 [211] / 67 | 33 [38] / 0 / 14 [20] / 67 |
+| rotate back to landscape | 25 [37] / 0 / 22 [22] / 48 | 21 [26] / 0 / 19 [21] / 39 |
+| title → game (assisted aiming) | 214 [218] / 164 / 70 [78] / 145 | 69 [102] / 19 / 109 [122] / 346 |
+| quit to the title (assisted aiming) | 167 [186] / 230 / 23 [23] / 186 | 25 [33] / 0 / 22 [23] / 71 |
+| title → game (left-handed) | 53 [58] / 3 / 58 [61] / 138 | 36 [53] / 0 / 31 [63] / 125 |
+| quit to the title (left-handed) | 28 [29] / 0 / 21 [22] / 70 | 29 [36] / 0 / 21 [33] / 66 |
+| update waiting at launch → tap the menu | tap worked (3 of 3) | tap worked (3 of 3) |
+| update found during launch → tap the menu | tap worked (3 of 3) | tap worked (3 of 3) |
+| update waiting at game over → Play again | **tap lost** (3 of 3) | tap worked (3 of 3) |
+| update waiting, quit to menu → tap the menu | tap worked (3 of 3) | tap worked (3 of 3) |
+| **Worst** | 509 [1268] / 757 / 229 [374] / 418; 3 taps lost | 99 [127] / 71 / 109 [122] / 346; 0 taps lost |
+
+**Standard iPhone (852×393 @3×, with safe areas), whole process slowed**
+
+| Screen change | Before | After |
+|---|---|---|
+| cold launch → title | 972 (972) [1063] / 1437 / 324 [365] / 490 | 127 (36) [130] / 116 / 20 [113] / 221 |
+| title → game (Rack ’em) | 106 [144] / 56 / 57 [119] / 253 | 65 [84] / 24 / 56 [90] / 248 |
+| pause sheet closes (Resume) | 24 [48] / 0 / 26 [50] / 67 | 0 [41] / 0 / 26 [46] / 65 |
+| spin sheet closes (Done) | 23 [47] / 0 / 44 [48] / 54 | 0 [63] / 0 / 22 [66] / 74 |
+| restart from the pause sheet | 33 [50] / 0 / 45 [52] / 95 | 31 [52] / 0 / 36 [48] / 104 |
+| pause → settings sheet | 0 [63] / 0 / 11 [18] / 138 | 0 [0] / 0 / 10 [17] / 148 |
+| pause → how to play sheet | 0 [0] / 0 / 9 [16] / 136 | 0 [0] / 0 / 9 [10] / 132 |
+| game over sheet → Play again | 54 [108] / 5 / 15 [16] / 204 | 38 [54] / 0 / 16 [17] / 122 |
+| Play again → game | 26 [82] / 0 / 25 [55] / 119 | 25 [73] / 0 / 23 [26] / 92 |
+| quit to the title | 48 [81] / 0 / 28 [75] / 113 | 51 [53] / 1 / 16 [18] / 86 |
+| Continue → game | 28 [111] / 0 / 26 [112] / 167 | 23 [33] / 0 / 19 [37] / 157 |
+| title → setup-cpu sheet | 25 [91] / 0 / 19 [78] / 109 | 23 [31] / 0 / 10 [37] / 107 |
+| title → setup-pvp sheet | 74 [110] / 24 / 35 [83] / 176 | 76 [76] / 26 / 21 [26] / 97 |
+| title → help sheet | 106 [170] / 120 / 26 [88] / 231 | 79 [95] / 38 / 21 [25] / 139 |
+| title → stats sheet | 33 [91] / 0 / 20 [86] / 117 | 23 [26] / 0 / 12 [32] / 107 |
+| title → settings sheet | 27 [91] / 0 / 21 [75] / 112 | 0 [26] / 0 / 23 [26] / 106 |
+| viewport resizes on the title | 392 [426] / 376 / 397 [417] / 530 | 74 [76] / 41 / 85 [86] / 496 |
+| viewport resizes mid-game | 413 [521] / 363 / 419 [519] / 543 | 63 [72] / 13 / 74 [82] / 180 |
+| rotate back to landscape | 67 [134] / 17 / 24 [57] / 111 | 55 [55] / 5 / 20 [34] / 106 |
+| title → game (assisted aiming) | 487 [550] / 437 / 87 [128] / 246 | 66 [89] / 30 / 77 [112] / 464 |
+| quit to the title (assisted aiming) | 372 [400] / 636 / 34 [69] / 432 | 23 [58] / 0 / 28 [35] / 165 |
+| title → game (left-handed) | 40 [103] / 0 / 58 [111] / 225 | 56 [88] / 6 / 61 [96] / 235 |
+| quit to the title (left-handed) | 24 [88] / 0 / 33 [38] / 140 | 51 [55] / 1 / 23 [25] / 165 |
+| update waiting at launch → tap the menu | tap worked (3 of 3) | tap worked (3 of 3) |
+| update found during launch → tap the menu | tap worked (3 of 3) | tap worked (3 of 3) |
+| update waiting at game over → Play again | **tap lost** (3 of 3) | tap worked (3 of 3) |
+| update waiting, quit to menu → tap the menu | tap worked (3 of 3) | tap worked (3 of 3) |
+| **Worst** | 972 [1063] / 1437 / 419 [519] / 543; 3 taps lost | 127 [130] / 116 / 85 [113] / 496; 0 taps lost |
+
+**SE, main thread only slowed**
+
+| Screen change | Before | After |
+|---|---|---|
+| cold launch → title | 770 (770) [814] / 833 / 117 [122] / 180 | 134 (46) [142] / 144 / 56 [64] / 102 |
+| title → game (Rack ’em) | 60 [78] / 10 / 78 [107] / 109 | 34 [64] / 0 / 62 [79] / 104 |
+| pause sheet closes (Resume) | 25 [38] / 0 / 28 [36] / 36 | 0 [0] / 0 / 16 [20] / 27 |
+| spin sheet closes (Done) | 31 [34] / 0 / 32 [39] / 49 | 0 [0] / 0 / 16 [16] / 21 |
+| restart from the pause sheet | 35 [39] / 0 / 38 [38] / 41 | 0 [26] / 0 / 16 [17] / 30 |
+| pause → settings sheet | 0 [0] / 0 / 9 [11] / 52 | 0 [0] / 0 / 9 [12] / 46 |
+| pause → how to play sheet | 0 [0] / 0 / 10 [14] / 37 | 0 [0] / 0 / 11 [12] / 40 |
+| game over sheet → Play again | 60 [60] / 20 / 10 [13] / 81 | 25 [27] / 0 / 11 [16] / 52 |
+| Play again → game | 57 [60] / 48 / 37 [53] / 80 | 25 [44] / 0 / 31 [35] / 57 |
+| quit to the title | 57 [66] / 18 / 51 [57] / 102 | 43 [51] / 0 / 30 [30] / 72 |
+| Continue → game | 65 [68] / 37 / 36 [45] / 98 | 74 [76] / 24 / 43 [78] / 70 |
+| title → setup-cpu sheet | 66 [93] / 50 / 40 [68] / 145 | 34 [34] / 0 / 24 [32] / 49 |
+| title → setup-pvp sheet | 61 [65] / 33 / 39 [68] / 122 | 33 [47] / 0 / 27 [38] / 45 |
+| title → help sheet | 80 [80] / 95 / 44 [45] / 133 | 0 [23] / 0 / 8 [13] / 32 |
+| title → stats sheet | 68 [98] / 18 / 13 [39] / 93 | 0 [0] / 0 / 9 [10] / 31 |
+| title → settings sheet | 66 [97] / 47 / 9 [55] / 140 | 0 [0] / 0 / 13 [13] / 30 |
+| viewport resizes on the title | 350 [431] / 304 / 356 [485] / 422 | 29 [36] / 0 / 28 [32] / 61 |
+| viewport resizes mid-game | 345 [418] / 303 / 13 [16] / 76 | 29 [32] / 0 / 12 [13] / 47 |
+| rotate back to landscape | 52 [53] / 2 / 55 [58] / 67 | 0 [0] / 0 / 17 [21] / 26 |
+| title → game (assisted aiming) | 232 [249] / 182 / 79 [134] / 95 | 24 [58] / 0 / 47 [98] / 155 |
+| quit to the title (assisted aiming) | 183 [198] / 249 / 28 [28] / 204 | 25 [43] / 0 / 20 [30] / 43 |
+| title → game (left-handed) | 54 [61] / 4 / 65 [72] / 94 | 48 [59] / 0 / 63 [67] / 90 |
+| quit to the title (left-handed) | 0 [0] / 0 / 15 [24] / 34 | 0 [0] / 0 / 17 [17] / 29 |
+| update waiting at launch → tap the menu | tap worked (3 of 3) | tap worked (3 of 3) |
+| update found during launch → tap the menu | tap worked (3 of 3) | tap worked (3 of 3) |
+| update waiting at game over → Play again | **tap lost** (3 of 3) | tap worked (3 of 3) |
+| update waiting, quit to menu → tap the menu | tap worked (3 of 3) | tap worked (3 of 3) |
+| **Worst** | 770 [814] / 833 / 356 [485] / 422; 3 taps lost | 134 [142] / 144 / 63 [98] / 155; 0 taps lost |
+
+**Standard, main thread only slowed**
+
+| Screen change | Before | After |
+|---|---|---|
+| cold launch → title | 952 (952) [1024] / 1041 / 316 [317] / 334 | 133 (76) [148] / 235 / 75 [92] / 186 |
+| title → game (Rack ’em) | 115 [190] / 65 / 117 [199] / 153 | 156 [176] / 122 / 160 [197] / 229 |
+| pause sheet closes (Resume) | 0 [80] / 0 / 24 [81] / 39 | 0 [82] / 0 / 28 [81] / 48 |
+| spin sheet closes (Done) | 25 [86] / 0 / 36 [84] / 38 | 0 [78] / 0 / 25 [79] / 36 |
+| restart from the pause sheet | 0 [83] / 0 / 25 [83] / 60 | 22 [95] / 0 / 28 [101] / 65 |
+| pause → settings sheet | 0 [0] / 0 / 18 [26] / 83 | 0 [0] / 0 / 11 [23] / 75 |
+| pause → how to play sheet | 0 [0] / 0 / 12 [14] / 70 | 0 [0] / 0 / 13 [19] / 75 |
+| game over sheet → Play again | 36 [151] / 0 / 15 [16] / 115 | 73 [138] / 23 / 15 [32] / 147 |
+| Play again → game | 36 [130] / 0 / 38 [123] / 66 | 33 [141] / 0 / 37 [107] / 53 |
+| quit to the title | 52 [127] / 2 / 35 [115] / 82 | 60 [133] / 11 / 30 [132] / 87 |
+| Continue → game | 60 [154] / 10 / 38 [125] / 95 | 60 [134] / 10 / 38 [118] / 75 |
+| title → setup-cpu sheet | 26 [155] / 0 / 32 [137] / 89 | 28 [157] / 0 / 30 [126] / 117 |
+| title → setup-pvp sheet | 53 [193] / 3 / 29 [154] / 57 | 29 [160] / 0 / 28 [147] / 81 |
+| title → help sheet | 39 [149] / 0 / 42 [139] / 101 | 62 [173] / 22 / 30 [153] / 107 |
+| title → stats sheet | 35 [162] / 0 / 50 [132] / 116 | 26 [161] / 0 / 27 [160] / 68 |
+| title → settings sheet | 35 [163] / 0 / 20 [137] / 80 | 22 [148] / 0 / 37 [110] / 121 |
+| viewport resizes on the title | 460 [783] / 410 / 467 [783] / 538 | 96 [167] / 81 / 97 [155] / 211 |
+| viewport resizes mid-game | 440 [777] / 390 / 438 [787] / 505 | 83 [161] / 33 / 71 [165] / 156 |
+| rotate back to landscape | 23 [132] / 0 / 31 [111] / 56 | 26 [136] / 0 / 31 [96] / 52 |
+| title → game (assisted aiming) | 433 [440] / 383 / 103 [125] / 140 | 110 [227] / 60 / 165 [302] / 301 |
+| quit to the title (assisted aiming) | 293 [330] / 470 / 35 [38] / 320 | 22 [33] / 0 / 21 [33] / 77 |
+| title → game (left-handed) | 73 [82] / 23 / 56 [75] / 119 | 60 [115] / 10 / 90 [139] / 156 |
+| quit to the title (left-handed) | 22 [28] / 0 / 29 [48] / 67 | 0 [28] / 0 / 26 [29] / 68 |
+| update waiting at launch → tap the menu | tap worked (3 of 3) | tap worked (3 of 3) |
+| update found during launch → tap the menu | tap worked (3 of 3) | tap worked (3 of 3) |
+| update waiting at game over → Play again | **tap lost** (3 of 3) | tap worked (3 of 3) |
+| update waiting, quit to menu → tap the menu | tap worked (3 of 3) | tap worked (3 of 3) |
+| **Worst** | 952 [1024] / 1041 / 467 [787] / 538; 3 taps lost | 156 [227] / 235 / 165 [302] / 301; 0 taps lost |
+
+**Reading it:**
+- **The blocking repaints are gone.**
+  - Launch: 0.5–1.0 s median before, 99–134 ms after, and at 3× most of that runs before the menu appears.
+  - Size changes: 0.2–0.46 s before, 29–96 ms after.
+  - The assisted-aiming switch: 0.21–0.49 s before, 24–110 ms after.
+- **The update reload no longer loses a tap.**
+- **Most screen changes now have no task over 50 ms.**
+- **Where tasks over 50 ms remain**, they are WebKit's own style, layout and paint of a screen shown for the first time (no script in them), or the work the tap itself starts. The old code has them too.
+- **The target isn't met everywhere.** With only the main thread slowed at 3×, title → game had medians of 156 ms (task) and +160 ms (tap), and 110 ms and +165 ms with assisted aiming.
+  - These rows vary widely between runs: the old code gave 47–190 ms on the same row.
+  - Profiled on its own, the same change gave 24–49 ms with the tap handled at +59–73 ms.
+  - The cost is WebKit painting the game screen for the first time (§13.6). I couldn't remove it without changing how the controls look.
+
+### 13.6 What's left
+
+- **The first paint of the game screen** (on the slowed engine, about 50 ms at SE and up to 190 ms at 3× with only the main thread slowed; the old code ranged 47–190 ms on the same row).
+  - When a game first starts, WebKit styles, lays out and paints the controls that were hidden on the title. No script is involved.
+  - Avoiding it would mean changing how the controls are drawn (fewer shadows and gradients), which would change the look, so I left it.
+  - It's a single task on the slowed engine: a tap in it waits, but isn't lost.
+- **Start-up before anything shows:** module loading (about 100–140 ms slowed) and the second start-up task (60–110 ms) still run as long tasks.
+  - Nothing is on screen until they're done, so no tap can wait on them.
+  - Splitting them further would mean reorganising the modules for no visible gain.
+- **WebGL frames cost 22–35 ms each in this engine whatever the CPU speed,** because this WebKit build draws WebGL in software. On an iPhone that's the GPU's work. It's why some rows show a task of about 22 ms where there's no script.
+- **A change of canvas size still allocates a texture** (30–80 ms in this engine, where it's a CPU copy). On an iPhone it's a GPU copy. It happens only when the viewport really changes size, such as when iOS settles after launch or rotation.
+- **The first tap still resumes audio,** because iOS only starts audio inside a tap. It's a few milliseconds now that the sounds are made in advance.
+- **Headless Chromium's service worker sometimes wedges during an update switch:** about 1 in 10 runs of the step alone, and 2 of the last 3 full verify runs. The waiting version never activates, and even a reload never finishes loading.
+  - The app handles it: after 5 s the menu comes back with the "update ready" pill, and the update applies at a later launch.
+  - I didn't find the cause. It didn't happen in WebKit, in any verify run or in 36 stress pages with update reloads, and I couldn't measure the old code the same way because it has no handle on its registration.
+  - `verify.cjs` retries that one check once in Chromium and says so in its output.
+- **Not verified on an iPhone,** because there's none here:
+  - painting in a worker (`OffscreenCanvas` needs iOS 16.4 or later; older versions paint on the main thread as before, without the speed-up);
+  - the cost of the texture copy on the phone's GPU;
+  - creating the audio context at start-up rather than in the first tap.
+
+  VERIFICATION.md §4 lists what to try.
+
+**Pixel identity:** before/after screenshots matched exactly (0 differing pixels) for the title and the game at four sizes (SE 1st generation 568×320, SE, standard 3× and Pro Max 3×), standard and assisted aiming, right- and left-handed: 32 pairs, in WebKit.
+  - The noise was seeded identically for both, so the comparison is exact.
+  - The worker's painting is byte-identical to the main thread's for the same input, and the new `paintScene` is byte-identical to the old one.

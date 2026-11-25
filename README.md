@@ -21,7 +21,7 @@
 
 **Updates:**
 - After a push to `main`, the installed app downloads the new version in the background the next time it's opened.
-- It switches over at a safe moment: straight after launch, on the menu, or at the end of a game. It never switches in the middle of a game.
+- It switches over only when nothing on screen can be tapped: at launch, before the menu appears, or when you next arrive at the menu (the screen goes to the launch colour for a moment while it reloads). It never switches in the middle of a game, and a reload never lands on a button you're about to tap.
 - A small "Updated" note confirms it. There's no need to delete and re-add the app.
 
 **Saved games:**
@@ -96,8 +96,9 @@ npm start         # builds to dist/ and serves it at http://localhost:8080/pool/
 - **Browser tests** (optional; needs Playwright, `npm i -D playwright && npx playwright install chromium webkit`):
 
   ```sh
-  node tools/e2e/verify.cjs chromium --shots   # 30 checks; screenshots into docs/screenshots
-  node tools/e2e/verify.cjs webkit             # the same checks in WebKit
+  node tools/e2e/verify.cjs chromium --shots   # 31 checks; screenshots into docs/screenshots
+  node tools/e2e/verify.cjs webkit             # the same checks in WebKit (29: the two frame-cost checks are Chromium-only)
+  node tools/e2e/latency.cjs webkit --throttle # main-thread blocking and tap response at every screen change, ~4x slower CPU (Linux)
   ```
 
 - **Icons and launch images:** to regenerate them from `src/icons/icon.svg`, run `node tools/icons.mjs` (also needs Playwright).
@@ -111,7 +112,7 @@ npm start         # builds to dist/ and serves it at http://localhost:8080/pool/
 | `src/js/rules.js` | 8-ball rules as pure functions |
 | `src/js/ai.js` | Computer opponent |
 | `src/js/render.js` | WebGL renderer (balls are shaded per pixel, with rolling number decals) |
-| `src/js/textures.js` | Table, rails and pockets, painted once per screen size |
+| `src/js/textures.js` | Table, rails and pockets, painted once per screen size, off the main thread by `src/js/paint.js` (a worker) |
 | `src/js/layout.js` | Viewport measurement (with the iOS workarounds) and where every control goes |
 | `src/js/input.js` | Touch controls: aim, power, roller, spin, ball in hand |
 | `src/js/feel.js` | **Every control feel value, in one commented file** |
@@ -131,7 +132,7 @@ npm start         # builds to dist/ and serves it at http://localhost:8080/pool/
 - **Dialogs** keep their buttons pinned to the bottom so they're always above the home indicator; long ones (settings, help) scroll above the buttons.
 - **Haptics** use an iOS 18 trick (a hidden switch control), which a future iOS may remove. Sound and play are unaffected if it goes.
 - **Separate saves** for Safari tabs and the installed app (iOS rule).
-- **Real-phone checks:** the automated checks run in desktop Chromium. [VERIFICATION.md](VERIFICATION.md) §3–4 lists what only an iPhone can confirm (touch feel, sound, haptics, offline, updates).
+- **Real-phone checks:** the automated checks run in desktop Chromium and in WebKit on Linux, not on an iPhone. [VERIFICATION.md](VERIFICATION.md) §3–4 lists what only an iPhone can confirm (touch feel, sound, haptics, offline, updates).
 
 ## Sound credits
 

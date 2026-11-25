@@ -15,38 +15,52 @@ export function loadSounds() {
 }
 
 // Resolves to the number of recordings decoded (the e2e check reads it).
+// One at a time, so the decodes' main-thread share is spread over many short tasks.
 export let soundsReady = Promise.resolve(0);
 function decodeAll() {
-  soundsReady = Promise.all(Object.entries(raw).map(async ([name, list]) => {
-    const got = (await Promise.all(list.map(async (p) => {
-      const ab = await p;
-      if (!ab) return null;
-      try { return await new Promise((res, rej) => ctx.decodeAudioData(ab.slice(0), res, rej)); } catch { return null; }
-    }))).filter(Boolean);
-    if (got.length) buffers[name] = got;
-    return got.length;
-  })).then((n) => n.reduce((a, b) => a + b, 0));
+  soundsReady = (async () => {
+    let n = 0;
+    for (const [name, list] of Object.entries(raw)) {
+      const got = [];
+      for (const p of list) {
+        const ab = await p;
+        if (!ab) continue;
+        try { got.push(await new Promise((res, rej) => ctx.decodeAudioData(ab.slice(0), res, rej))); } catch { /* fallback below */ }
+      }
+      if (got.length) buffers[name] = got;
+      n += got.length;
+    }
+    return n;
+  })();
 }
 
 export function setSound(on) { enabledSound = on; }
 export function setHaptics(on) { enabledHaptics = on; }
 
+// Made at start-up, before the menu shows: making it (and decoding) inside the first tap held that tap up by 0.2 s
+// (4x-throttled WebKit). It starts suspended; iOS lets unlockAudio resume it inside a tap.
+export function initAudio() {
+  try {
+    if (ctx) return;
+    // 'ambient': respects the ringer switch and mixes with the player's music.
+    if (navigator.audioSession) navigator.audioSession.type = 'ambient';
+    const AC = window.AudioContext || window.webkitAudioContext;
+    if (!AC) return;
+    ctx = new AC();
+    master = ctx.createGain();
+    master.gain.value = 0.9;
+    master.connect(ctx.destination);
+    build(['tick']);   // the other synthesised sounds are fallbacks, made only if their recordings fail
+    decodeAll();
+    soundsReady.then(() => setTimeout(() => build(Object.keys(SAMPLES)), 0));
+  } catch { /* audio is optional */ }
+}
+
 // Must be called from a user gesture (iOS only starts audio inside one).
 export function unlockAudio() {
   try {
-    if (!ctx) {
-      // 'ambient': respects the ringer switch and mixes with the player's music.
-      if (navigator.audioSession) navigator.audioSession.type = 'ambient';
-      const AC = window.AudioContext || window.webkitAudioContext;
-      if (!AC) return;
-      ctx = new AC();
-      master = ctx.createGain();
-      master.gain.value = 0.9;
-      master.connect(ctx.destination);
-      build();
-      decodeAll();
-    }
-    if (ctx.state !== 'running') ctx.resume().catch(() => {});
+    if (!ctx) initAudio();
+    if (ctx && ctx.state !== 'running') ctx.resume().catch(() => {});
   } catch { /* audio is optional */ }
 }
 
@@ -65,11 +79,13 @@ function buf(dur, fill) {
   return b;
 }
 
-function build() {
+// Synthesised sounds, made only for the names asked for that have no recording.
+function build(names) {
   const TAU = Math.PI * 2;
   const synth = {};
+  const make = (name, dur, fill) => { if (names.includes(name) && !buffers[name]) synth[name] = buf(dur, fill); };
   // Ball on ball: bright, very short modal click.
-  synth.click = buf(0.07, (d, sr, nz) => {
+  make('click', 0.07, (d, sr, nz) => {
     const modes = [[2350, 1, 90], [3720, 0.6, 120], [5480, 0.35, 160], [7900, 0.15, 220]];
     for (let i = 0; i < d.length; i++) {
       const t = i / sr;
@@ -80,7 +96,7 @@ function build() {
     }
   });
   // Cushion: soft rubber thump.
-  synth.cushion = buf(0.14, (d, sr, nz) => {
+  make('cushion', 0.14, (d, sr, nz) => {
     let lp = 0;
     for (let i = 0; i < d.length; i++) {
       const t = i / sr;
@@ -89,7 +105,7 @@ function build() {
     }
   });
   // Pocket: clunk, a short rattle, then a roll down the return.
-  synth.pocket = buf(0.55, (d, sr, nz) => {
+  make('pocket', 0.55, (d, sr, nz) => {
     let lp = 0;
     const clicks = [0, 0.035, 0.07];
     for (let i = 0; i < d.length; i++) {
@@ -102,7 +118,7 @@ function build() {
     }
   });
   // Cue tip on ball: leathery tick.
-  synth.cue = buf(0.06, (d, sr, nz) => {
+  make('cue', 0.06, (d, sr, nz) => {
     let lp = 0;
     for (let i = 0; i < d.length; i++) {
       const t = i / sr;
@@ -110,11 +126,11 @@ function build() {
       d[i] = Math.sin(TAU * 1450 * t) * Math.exp(-110 * t) * 0.7 + lp * Math.exp(-180 * t) + Math.sin(TAU * 420 * t) * Math.exp(-60 * t) * 0.3;
     }
   });
-  synth.tick = buf(0.03, (d, sr) => {
+  make('tick', 0.03, (d, sr) => {
     for (let i = 0; i < d.length; i++) { const t = i / sr; d[i] = Math.sin(TAU * 2600 * t) * Math.exp(-220 * t); }
   });
   // Rolling fallback: low-passed noise, looped.
-  synth.roll = buf(1.5, (d, sr, nz) => {
+  make('roll', 1.5, (d, sr, nz) => {
     let a = 0, b = 0;
     for (let i = 0; i < d.length; i++) { a += (nz() - a) * 0.06; b += (a - b) * 0.06; d[i] = b; }
   });

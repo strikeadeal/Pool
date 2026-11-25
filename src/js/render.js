@@ -2,7 +2,23 @@
 // (centre + two half-axes), so per-frame work is a few dozen small draws and uniform uploads.
 // The table and room are a single pre-painted texture: no per-frame rasterisation on the CPU.
 import { L, W, R, N } from './physics.js';
-import { paintScene, paintDigits, paintCue, BALL_COLORS, hexToRgb, LAMPS, FELT_RGB } from './textures.js';
+import { paintScene, noisePixels, paintDigits, paintCue, BALL_COLORS, hexToRgb, LAMPS, FELT_RGB } from './textures.js';
+
+// Painting the table and room is a full-screen Canvas 2D raster plus a texture upload: 0.25 s at SE size and 0.6-1.3 s
+// at 3x on a 4x-throttled WebKit, all in one task, and taps wait behind it. So a worker paints it (and the ball digits
+// and cue) and hands it back as raw pixels, one strip per message, and the main thread uploads a few strips per task
+// into one texture (allocated ahead of need, see allocate()). Where there's no OffscreenCanvas (iOS before 16.4) it's all painted here, as before.
+// DECISIONS.md §13 has the measurements and the alternatives that failed.
+const STRIP_PX = 1 << 17;    // pixels per strip (384 KB of RGB): 8 strips at SE size, 23 at 3x
+const UPLOAD_MS = 6;         // upload strips for at most this long per task
+let worker = null, jobId = 0;
+function painter() {
+  if (worker === null) {
+    try { worker = typeof OffscreenCanvas === 'function' ? new Worker(new URL('./paint.js', import.meta.url), { type: 'module' }) : false; }
+    catch { worker = false; }
+  }
+  return worker;
+}
 
 const VS = `
 attribute vec2 a_q;
@@ -107,11 +123,13 @@ function compile(gl, vs, fs) {
   return { p, u };
 }
 
+// src: a canvas, or { w, h, px } with the pixels as getImageData gives them (from the worker)
 function texture(gl, src, mip) {
   const t = gl.createTexture();
   gl.bindTexture(gl.TEXTURE_2D, t);
   gl.pixelStorei(gl.UNPACK_PREMULTIPLY_ALPHA_WEBGL, false);
-  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
+  if (src.px) gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, src.w, src.h, 0, gl.RGBA, gl.UNSIGNED_BYTE, new Uint8Array(src.px));
+  else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, src);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
   gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
@@ -136,7 +154,7 @@ export class Renderer {
     if (!gl) throw new Error('WebGL is not available');
     this.gl = gl;
     gl.getExtension('OES_standard_derivatives');
-    this.bg = compile(gl, VS, FS_BG);
+    this.bgProg = compile(gl, VS, FS_BG);
     this.ball = compile(gl, VS, FS_BALL);
     this.shape = compile(gl, VS, FS_SHAPE);
     this.cue = compile(gl, VS, FS_CUE);
@@ -147,30 +165,116 @@ export class Renderer {
     gl.vertexAttribPointer(0, 2, gl.FLOAT, false, 0, 0);
     gl.enable(gl.BLEND);
     gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA);
-    this.digitTex = texture(gl, paintDigits(), true);
-    this.cueTex = texture(gl, paintCue(), true);
-    this.bgTex = null;
+    this.digitTex = this.cueTex = null;   // painted with the first table (by the worker, or makeTextures)
+    this.bg = null;         // the painting on screen: { key, lay, tex }
+    this.bgs = [];          // the last two paintings, so going between two layouts (assisted aiming) doesn't repaint
+    this.job = null;        // the painting under way, same shape
+    this.inbox = [];        // strips and textures from the worker, waiting to be uploaded
+    this.spare = null;      // an allocated table texture not in use: { tex, w, h }
   }
 
   resize(lay, dpr) {
     this.lay = lay; this.dpr = dpr;
     const c = this.canvas;
-    c.width = Math.round(lay.w * dpr); c.height = Math.round(lay.h * dpr);
+    // Every screen change relayouts; setting a canvas's size, even to the same value, reallocates its drawing buffer.
+    const cw = Math.round(lay.w * dpr), ch = Math.round(lay.h * dpr);
+    if (c.width !== cw || c.height !== ch) { c.width = cw; c.height = ch; }
     c.style.width = lay.w + 'px'; c.style.height = lay.h + 'px';
     const gl = this.gl;
     if (this.lost) return;
     gl.viewport(0, 0, c.width, c.height);
     // Repaint the table only when its geometry actually changed (resize events are frequent).
     const key = [lay.w, lay.h, dpr, lay.s, lay.cx, lay.cy].join();
-    if (key !== this.bgKey || !this.bgTex) {
-      if (this.bgTex) gl.deleteTexture(this.bgTex);
-      this.bgTex = texture(gl, paintScene(lay, dpr), false);
-      this.bgKey = key;
-    }
+    if (key !== this.bgKey) { this.bgKey = key; this.paintBg(lay, dpr, key); }
     const s = lay.s, vw = lay.w, vh = lay.h, [ex0, ex1] = lay.ex, [ey0, ey1] = lay.ey;
     const A = (2 * s * ex0) / vw, B = (2 * s * ey0) / vw, C = (2 * (lay.cx - (L / 2) * s * ex0 - (W / 2) * s * ey0)) / vw - 1;
     const D = (-2 * s * ex1) / vh, E = (-2 * s * ey1) / vh, F = 1 - (2 * (lay.cy - (L / 2) * s * ex1 - (W / 2) * s * ey1)) / vh;
     this.m = new Float32Array([A, D, 0, B, E, 0, C, F, 1]);
+  }
+
+  get ready() { return !!(this.bg && this.digitTex); }
+  makeTextures() {
+    if (this.digitTex || this.lost) return;
+    this.digitTex = texture(this.gl, paintDigits(), true);
+    this.cueTex = texture(this.gl, paintCue(), true);
+    if (this.ready) this.onReady?.();
+  }
+  // Table textures are the canvas's size, and allocating one costs 30-80 ms on a throttled WebKit at 3x (software GL).
+  // So one is kept spare, made during launch while nothing shows, and textures are passed on rather than deleted:
+  // only a change in canvas size (rotation, a viewport resize) has to allocate during use.
+  allocate(w, h) {
+    const gl = this.gl, s = this.spare;
+    this.spare = null;
+    if (s && s.w === w && s.h === h) return s.tex;
+    if (s) gl.deleteTexture(s.tex);
+    const tex = gl.createTexture(), c = this.canvas;
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex);
+    // copying the canvas allocates it on the GPU; allocating it empty makes WebGL zero-fill it on the CPU
+    if (c.width === w && c.height === h) gl.copyTexImage2D(gl.TEXTURE_2D, 0, gl.RGB, 0, 0, w, h, 0);
+    else gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, w, h, 0, gl.RGB, gl.UNSIGNED_BYTE, null);
+    for (const [k, v] of [[gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE], [gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE], [gl.TEXTURE_MAG_FILTER, gl.LINEAR], [gl.TEXTURE_MIN_FILTER, gl.LINEAR]]) gl.texParameteri(gl.TEXTURE_2D, k, v);
+    return tex;
+  }
+  release(b) {
+    if (!b?.tex) return;
+    if (this.spare) this.gl.deleteTexture(this.spare.tex);
+    this.spare = { tex: b.tex, w: b.w, h: b.h };
+  }
+  dropJob() {
+    this.release(this.job);
+    this.job = null;
+  }
+  finish(job) {
+    const first = !this.bg;
+    this.job = null;
+    this.bg = job;
+    this.bgs = [job, ...this.bgs.filter((b) => b.key !== job.key)];
+    for (const b of this.bgs.splice(2)) this.release(b);
+    if (first && painter()) setTimeout(() => { if (!this.spare && !this.lost) this.spare = { tex: this.allocate(job.w, job.h), w: job.w, h: job.h }; }, 0);   // before the screen shows
+    if (this.ready) this.onReady?.();
+  }
+
+  // Until the new painting is in, the last one stays up, moved and scaled so its table sits on the new table.
+  paintBg(lay, dpr, key) {
+    this.dropJob();
+    const hit = this.bgs.find((b) => b.key === key);
+    if (hit) { this.bg = hit; return; }
+    const gl = this.gl, cw = Math.round(lay.w * dpr), ch = Math.round(lay.h * dpr);
+    const job = (this.job = { id: ++jobId, key, lay, w: cw, h: ch, tex: null });
+    const w = painter();
+    if (!w) {
+      this.makeTextures();
+      job.tex = texture(gl, paintScene(lay, dpr), false);
+      this.finish(job); return;
+    }
+    w.onerror = () => { if (this.job === job) { worker = false; this.paintBg(lay, dpr, key); } };
+    w.onmessage = ({ data }) => { this.inbox.push(data); if (this.inbox.length === 1) setTimeout(() => this.pump(), 0); };
+    w.postMessage({ id: job.id, lay: { w: lay.w, h: lay.h, s: lay.s, cx: lay.cx, cy: lay.cy, ex: lay.ex, ey: lay.ey }, dpr,
+      noise: noisePixels(), rows: Math.max(1, Math.floor(STRIP_PX / cw)), extras: !this.digitTex });
+  }
+  pump() {
+    if (!this.inbox.length) return;   // emptied by a context restore
+    const t = performance.now();
+    do this.take(this.inbox.shift()); while (this.inbox.length && performance.now() - t < UPLOAD_MS);
+    if (this.inbox.length) setTimeout(() => this.pump(), 0);
+  }
+  take(d) {
+    const gl = this.gl;
+    if (this.lost) return;
+    const slot = { digits: 'digitTex', cue: 'cueTex' }[d.kind];
+    if (slot) {
+      if (!this[slot]) this[slot] = texture(gl, d, true);
+      if (this.ready) this.onReady?.();
+      return;
+    }
+    const job = this.job;
+    if (!job || d.id !== job.id) return;
+    if (!job.tex) job.tex = this.allocate(job.w, job.h);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, job.tex);
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 1);   // RGB rows aren't a multiple of 4 bytes
+    gl.texSubImage2D(gl.TEXTURE_2D, 0, 0, d.y, d.w, d.h, gl.RGB, gl.UNSIGNED_BYTE, new Uint8Array(d.px));
+    gl.pixelStorei(gl.UNPACK_ALIGNMENT, 4);
+    if (d.last) this.finish(job);
   }
 
   use(prog) {
@@ -258,14 +362,22 @@ export class Renderer {
 
   // scene: { balls:{x,y,on,q}, drops:[{i,x,y,s,f}], under:[fn], over:[fn], cue:{x,y,dx,dy,a}|null }
   draw(scene) {
-    if (this.lost || !this.bgTex) return;
+    if (this.lost || !this.ready) return;
     const gl = this.gl;
     this.cur = null;
-    const ub = this.use(this.bg);
-    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.bgTex);
+    const ub = this.use(this.bgProg);
+    gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, this.bg.tex);
     gl.uniform1i(ub.u_tex, 0);
     gl.uniformMatrix3fv(ub.u_m, false, IDENT);
-    gl.uniform2f(ub.u_c, 0, 0); gl.uniform2f(ub.u_u, 1, 0); gl.uniform2f(ub.u_v, 0, 1);
+    const o = this.bg.lay, n = this.lay;
+    if (this.bg.key === this.bgKey) { gl.uniform2f(ub.u_c, 0, 0); gl.uniform2f(ub.u_u, 1, 0); gl.uniform2f(ub.u_v, 0, 1); }
+    else {
+      // stand-in while the repaint for a new size is under way: the old picture, its table over the new table
+      gl.clearColor(0.012, 0.027, 0.059, 1); gl.clear(gl.COLOR_BUFFER_BIT);
+      const k = n.s / o.s, X = (x) => (2 * (n.cx + (x - o.cx) * k)) / n.w - 1, Y = (y) => 1 - (2 * (n.cy + (y - o.cy) * k)) / n.h;
+      const x0 = X(0), x1 = X(o.w), y0 = Y(0), y1 = Y(o.h);
+      gl.uniform2f(ub.u_c, (x0 + x1) / 2, (y0 + y1) / 2); gl.uniform2f(ub.u_u, (x1 - x0) / 2, 0); gl.uniform2f(ub.u_v, 0, (y0 - y1) / 2);
+    }
     gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
     this.cur = null;
     for (const f of scene.under || []) f(this);

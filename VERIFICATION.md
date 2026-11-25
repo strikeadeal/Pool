@@ -1,9 +1,9 @@
 # Verification notes
 
-**Short version:** everything below was checked in Node and in desktop Chromium emulating iPhone screens. **None of it has run on an iPhone, in the iOS Simulator, or in WebKit.**
+**Short version:** everything below was checked in Node, in desktop Chromium emulating iPhone screens, and in WebKit (Safari's engine) in its Linux build. **None of it has run on an iPhone or in the iOS Simulator.**
 
 - I had no Mac, so no Simulator.
-- This environment's rules don't allow installing Playwright's WebKit build. `tools/e2e/verify.cjs webkit` will run the same checks in WebKit on a machine that has it.
+- The WebKit runs use Playwright's WPE build (WebKit 26.6 on Linux). It's the same engine as Safari, but not iOS: there's no GPU (WebGL is drawn in software), no touch hardware, no iOS viewport and no home-screen app mode.
 
 Treat every iOS-specific behaviour (standalone viewport, safe areas, haptics, audio session, ProMotion, storage durability) as **untested until you try it on your phone**.
 
@@ -16,9 +16,9 @@ Treat every iOS-specific behaviour (standalone viewport, safe areas, haptics, au
 | `storage.test.mjs` (5) | Versioned keys and revisions. A stale tab can't overwrite newer data. Older code never writes over a newer schema. Read-modify-write stats don't lose records across tabs. Corrupt data falls back. |
 | `game.test.mjs` (5) | Six complete computer-vs-computer games, plus one with calling off, through the real physics and rules, with state invariants checked every shot. **Hard beats Easy in at least 70% of 10 games.** With ball in hand, Easy and Medium never miss everything or hit the wrong ball first (24 games). On the 8, the computer calls the pocket the 8 is heading for. |
 
-## 2. Browser checks (Chromium 153 headless, SwiftShader WebGL, Playwright 1.63): 26 pass
+## 2. Browser checks (Playwright 1.63): 31 pass in Chromium 158, 29 in WebKit 26.6
 
-Command: `node tools/e2e/verify.cjs chromium --shots`. It runs against the **production build served under `/pool/`** by a server that mimics GitHub Pages, including its 10-minute cache header.
+Commands: `node tools/e2e/verify.cjs chromium --shots` and `node tools/e2e/verify.cjs webkit`. Chromium runs headless with SwiftShader WebGL. WebKit runs every check except the two Chromium-only ones: frame cost, which needs Chromium's CPU throttle, and idle frames. It runs against the **production build served under `/pool/`** by a server that mimics GitHub Pages, including its 10-minute cache header.
 
 | Check | Result |
 |---|---|
@@ -38,12 +38,43 @@ Command: `node tools/e2e/verify.cjs chromium --shots`. It runs against the **pro
 | **Offline:** relaunch with the network off loads from the service worker, and a shot can be played | pass |
 | **Update mid-game:** the new version waits, with no reload and the "update ready" pill shown | pass |
 | **Update at the menu:** applies and reloads, and the saved game continues unchanged | pass |
-| **Update found at launch** (before any input) installs immediately | pass |
+| **Update waiting at launch** applies before the menu shows, so no tap is lost to the reload. One found after the menu is up waits for the next launch. | pass (Chromium: see §2.1) |
+| **Screen changes** (§2.1): at every screen change, a tap on the new screen's button the moment it appears works. In WebKit, no task over 50 ms after it appears, and the tap is handled within 100 ms. | WebKit: pass, longest 43 ms, slowest tap +31 ms. Chromium: no tap lost |
 | **Update while the menu is in use:** the new version waits, and the sheet just opened stays open. Before the fix the page reloaded under the player and threw the tap away. | pass |
 | **Fonts landing late** (every cold launch): no button on any screen moves when the web fonts replace the fallback, at standard, SE and 568×320. Before the fix, buttons moved by up to 198 px. | 3/3 |
 | JS time per frame during a break with **4× CPU throttling** (SE-sized screen) | median 0.8 ms, 95th percentile 7.7 ms, worst 24.3 ms (one frame) |
 | No animation frames while idle | 0 frames in 1.5 s |
 | Console errors or uncaught exceptions across all of the above | none |
+
+### 2.1 Taps after a screen change (WebKit, DECISIONS.md §13)
+
+Measured in WebKit with the CPU slowed about 4×, at SE and standard (3×) sizes, with real mouse input. Every screen change in the game was covered:
+- launch, with and without an update waiting;
+- title → game and game over → Play again;
+- restarting from the pause sheet, and quitting to the title;
+- Continue;
+- opening and closing every sheet;
+- viewport size changes and rotation;
+- assisted aiming and left-handed layouts.
+
+For each, the tap lands the moment the new screen's button appears. The full before/after tables are in DECISIONS.md §13.5. In short:
+
+| Configuration | Longest task, worst median row | Tap handled, worst median row | Taps lost, 3 runs |
+|---|---|---|---|
+| SE (667×375 @2×), whole process slowed | 509 → **99** | 229 → **109** | 3 → **0** |
+| Standard (852×393 @3×), whole process slowed | 972 → **127** | 419 → **85** | 3 → **0** |
+| SE, main thread slowed | 770 → **134** | 356 → **63** | 3 → **0** |
+| Standard, main thread slowed | 952 → **156** | 467 → **165** | 3 → **0** |
+
+- Before → after. The one tap lost in each run of the old code was **Play again** with an update waiting.
+- Where the target (no task over 50 ms, tap handled within 100 ms) still isn't met, DECISIONS.md §13.5–13.6 says why.
+- **The main miss** is the first paint of the game screen at 3× with only the main thread slowed, which varies a lot between runs here.
+
+`verify.cjs` keeps this as a regression check (§7b), unthrottled. In WebKit it fails on a task over 50 ms after a button shows, on a tap handled more than 100 ms after its button appears, or on a lost tap. In Chromium it fails only on a lost tap: Chromium never showed the bug, and its headless software GL adds random 60–180 ms rendering tasks, in the old code too.
+
+Two Chromium-only quirks:
+- Its service worker sometimes wedges as a waiting update is told to take over: about 1 in 10 runs of the step alone, and 2 of the last 3 full verify runs. The app falls back to the "update ready" pill after 5 s.
+- Because of that, the update-at-launch check retries once in Chromium and says so in its output. WebKit never needed it.
 
 **Screenshots:** they're in [`docs/screenshots/`](docs/screenshots). There's a title and an in-game shot for each size (landscape), the game-over screen, and the portrait rotate screen.
 
@@ -74,6 +105,10 @@ Command: `node tools/e2e/verify.cjs chromium --shots`. It runs against the **pro
 - Whether iOS flushes `localStorage` before a force-quit right after a shot. If it doesn't, you'd lose that last shot and replay it, but the game won't be corrupted.
 - VoiceOver reading the menus, HUD and announcements.
 - The update flow against the real GitHub Pages CDN.
+- **Buttons responding straight after a screen change** (DECISIONS.md §13). Measured in WebKit on Linux, not on a phone. These are untested on the iPhone:
+  - painting the table in a worker (`OffscreenCanvas`, iOS 16.4 and later);
+  - the texture copy on the phone's GPU;
+  - the audio context created at launch, before the first tap.
 - The repository name and URL case (README, "Before you deploy").
 
 ## 4. What to try first on the phone (10 minutes)
@@ -89,11 +124,29 @@ Command: `node tools/e2e/verify.cjs chromium --shots`. It runs against the **pro
    - Open the app, go to the menu, and you should see "Updated".
    - Then start a game, push again, and reopen. The update should wait until you leave the game.
 
+### Taps after a screen change (5 minutes)
+
+Each time, tap the new screen's button **as soon as it appears**. It should respond at once, never after a pause.
+1. **Cold launch:** swipe the app away, open it from the icon, and tap **Play** the moment the menu shows.
+2. **Into a game and back:** start a game and tap the menu button at once. Quit to the title and tap a menu item at once.
+3. **Game over:** concede (pause → Concede), then tap **Play again** at once.
+4. **Restart** from the pause sheet, then **Continue** from the title, tapping at once each time.
+5. **Assisted aiming:** turn it on in Settings, start a game, tap at once, then quit and tap at once. This used to be the slowest case.
+6. **Rotate** upright and back, then tap the menu button at once.
+7. **Sound:** the first shot after launch should make its sound.
+8. **After a deploy:** launch the app. It should open straight onto the new version, with no tap thrown away and no "update ready" pill.
+9. **Update pending at game over:** push a change, finish a game, and tap **Play again** at once. It should start a new game; the update waits for the menu.
+10. **Two deploys in quick succession:** push twice a minute apart, then launch. You should land on the second version.
+11. **Offline:** in Airplane Mode, launch and tap at once.
+
+If any tap needs a second try, note which step it was, and whether it was the first launch after installing or after a deploy.
+
 ## 5. Re-running
 
 ```sh
 npm test                                         # unit tests, no dependencies
 npm i -D playwright && npx playwright install chromium webkit
 node tools/e2e/verify.cjs chromium --shots       # browser checks + screenshots
-node tools/e2e/verify.cjs webkit                 # the same checks in WebKit (the frame-cost check is Chromium-only)
+node tools/e2e/verify.cjs webkit                 # the same checks in WebKit (the frame-cost checks are Chromium-only)
+node tools/e2e/latency.cjs webkit --throttle --size standard   # screen-change timings, CPU slowed 4× (Linux only)
 ```
