@@ -376,7 +376,7 @@ Reported on the phone: after launch, starting or restarting a game and other scr
 - **WebGL frames cost 22–35 ms each in this engine whatever the CPU speed,** because this WebKit build draws WebGL in software. On an iPhone that's the GPU's work. It's why some rows show a task of about 22 ms where there's no script.
 - **A change of canvas size still allocates a texture** (30–80 ms in this engine, where it's a CPU copy). On an iPhone it's a GPU copy. It happens only when the viewport really changes size, such as when iOS settles after launch or rotation.
 - **The first tap still resumes audio,** because iOS only starts audio inside a tap. It's a few milliseconds now that the sounds are made in advance.
-- **Headless Chromium's service worker sometimes wedges during an update switch** (about 1 run in 10). The waiting version never activates, and even a reload never finishes loading.
+- **Headless Chromium's service worker sometimes wedges during an update switch:** about 1 in 10 runs of the step alone, and 2 of the last 3 full verify runs. The waiting version never activates, and even a reload never finishes loading.
   - The app handles it: after 5 s the menu comes back with the "update ready" pill, and the update applies at a later launch.
   - I didn't find the cause. It didn't happen in WebKit, in any verify run or in 36 stress pages with update reloads, and I couldn't measure the old code the same way because it has no handle on its registration.
   - `verify.cjs` retries that one check once in Chromium and says so in its output.

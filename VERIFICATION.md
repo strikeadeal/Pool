@@ -64,7 +64,7 @@ For each, the tap lands the moment the new screen's button appears. The full bef
 `verify.cjs` keeps this as a regression check (§7b), unthrottled. In WebKit it fails on a task over 50 ms after a button shows, on a tap handled more than 100 ms after its button appears, or on a lost tap. In Chromium it fails only on a lost tap: Chromium never showed the bug, and its headless software GL adds random 60–180 ms rendering tasks, in the old code too.
 
 Two Chromium-only quirks:
-- Its service worker occasionally (about 1 run in 10) wedges as a waiting update is told to take over. The app falls back to the "update ready" pill after 5 s.
+- Its service worker sometimes wedges as a waiting update is told to take over: about 1 in 10 runs of the step alone, and 2 of the last 3 full verify runs. The app falls back to the "update ready" pill after 5 s.
 - Because of that, the update-at-launch check retries once in Chromium and says so in its output. WebKit never needed it.
 
 **Screenshots:** they're in [`docs/screenshots/`](docs/screenshots). There's a title and an in-game shot for each size (landscape), the game-over screen, and the portrait rotate screen.
