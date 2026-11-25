@@ -3,7 +3,7 @@
 //   so a stale CDN edge can never mix old and new files into one version.
 // - Serve from cache first: the game works offline after the first launch.
 // - Never skipWaiting on its own: the page activates a new version only at a safe moment
-//   (menu, game over, or straight after launch), so a game is never interrupted.
+//   (on arriving at the menu, or at launch before the menu shows), so a game is never interrupted.
 const VERSION = '__VERSION__';
 const ASSETS = __ASSETS__;
 const CACHE = 'baize-' + VERSION;

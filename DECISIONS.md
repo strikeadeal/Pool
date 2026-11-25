@@ -366,4 +366,27 @@ Reported on the phone: after launch, starting or restarting a game and other scr
 
 ### 13.6 What's left
 
-<!-- LEFT -->
+- **The first paint of the game controls (45–90 ms at 3× on the slowed engine, the same as before).**
+  - When a game first starts, WebKit styles, lays out and paints the controls that were hidden on the title. No script is involved.
+  - Avoiding it would mean changing how the controls are drawn (fewer shadows and gradients), which would change the look, so I left it.
+  - It's a single task on the slowed engine: a tap in it waits, but isn't lost.
+- **Start-up before anything shows:** module loading (about 100–140 ms slowed) and the second start-up task (60–110 ms) still run as long tasks.
+  - Nothing is on screen until they're done, so no tap can wait on them.
+  - Splitting them further would mean reorganising the modules for no visible gain.
+- **WebGL frames cost 22–35 ms each in this engine whatever the CPU speed,** because this WebKit build draws WebGL in software. On an iPhone that's the GPU's work. It's why some rows show a task of about 22 ms where there's no script.
+- **A change of canvas size still allocates a texture** (30–80 ms in this engine, where it's a CPU copy). On an iPhone it's a GPU copy. It happens only when the viewport really changes size, such as when iOS settles after launch or rotation.
+- **The first tap still resumes audio,** because iOS only starts audio inside a tap. It's a few milliseconds now that the sounds are made in advance.
+- **Headless Chromium's service worker sometimes wedges during an update switch** (about 1 run in 10). The waiting version never activates, and even a reload never finishes loading.
+  - The app handles it: after 5 s the menu comes back with the "update ready" pill, and the update applies at a later launch.
+  - I didn't find the cause. It didn't happen in WebKit, in any verify run or in 36 stress pages with update reloads, and I couldn't measure the old code the same way because it has no handle on its registration.
+  - `verify.cjs` retries that one check once in Chromium and says so in its output.
+- **Not verified on an iPhone,** because there's none here:
+  - painting in a worker (`OffscreenCanvas` needs iOS 16.4 or later; older versions paint on the main thread as before, without the speed-up);
+  - the cost of the texture copy on the phone's GPU;
+  - creating the audio context at start-up rather than in the first tap.
+
+  VERIFICATION.md §4 lists what to try.
+
+**Pixel identity:** before/after screenshots matched exactly (0 differing pixels) for the title and the game at four sizes (SE 1st generation 568×320, SE, standard 3× and Pro Max 3×), standard and assisted aiming, right- and left-handed: 32 pairs, in WebKit.
+  - The noise was seeded identically for both, so the comparison is exact.
+  - The worker's painting is byte-identical to the main thread's for the same input, and the new `paintScene` is byte-identical to the old one.

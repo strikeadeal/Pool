@@ -96,8 +96,8 @@ npm start         # builds to dist/ and serves it at http://localhost:8080/pool/
 - **Browser tests** (optional; needs Playwright, `npm i -D playwright && npx playwright install chromium webkit`):
 
   ```sh
-  node tools/e2e/verify.cjs chromium --shots   # 30 checks; screenshots into docs/screenshots
-  node tools/e2e/verify.cjs webkit             # the same checks in WebKit
+  node tools/e2e/verify.cjs chromium --shots   # 31 checks; screenshots into docs/screenshots
+  node tools/e2e/verify.cjs webkit             # the same checks in WebKit (29: the two frame-cost checks are Chromium-only)
   node tools/e2e/latency.cjs webkit --throttle # main-thread blocking and tap response at every screen change, ~4x slower CPU (Linux)
   ```
 
@@ -132,7 +132,7 @@ npm start         # builds to dist/ and serves it at http://localhost:8080/pool/
 - **Dialogs** keep their buttons pinned to the bottom so they're always above the home indicator; long ones (settings, help) scroll above the buttons.
 - **Haptics** use an iOS 18 trick (a hidden switch control), which a future iOS may remove. Sound and play are unaffected if it goes.
 - **Separate saves** for Safari tabs and the installed app (iOS rule).
-- **Real-phone checks:** the automated checks run in desktop Chromium. [VERIFICATION.md](VERIFICATION.md) §3–4 lists what only an iPhone can confirm (touch feel, sound, haptics, offline, updates).
+- **Real-phone checks:** the automated checks run in desktop Chromium and in WebKit on Linux, not on an iPhone. [VERIFICATION.md](VERIFICATION.md) §3–4 lists what only an iPhone can confirm (touch feel, sound, haptics, offline, updates).
 
 ## Sound credits
 
