@@ -7,7 +7,7 @@ import { measure, computeLayout, toScreen } from './layout.js';
 import { Renderer } from './render.js';
 import { holeCentre } from './textures.js';
 import { attachInput } from './input.js';
-import { play, setRoll, loadSounds, initAudio, haptic, unlockAudio, suspendAudio, setSound, setHaptics } from './feedback.js';
+import { play, setRoll, loadSounds, haptic, unlockAudio, suspendAudio, setSound, setHaptics } from './feedback.js';
 import * as Store from './storage.js';
 import { initRecorder, recShot, setRecording, recording, recCount, shareRecording, copyRecording, clearRecording, flush as flushRec } from './recorder.js';
 
@@ -38,6 +38,7 @@ let lay = null, meas = null, renderer = null, input = null, dpr = 1;
 let overlay = null;         // id of the open sheet, or null
 let screenName = 'title';
 let readonly = false;
+let bootAt = performance.now(), interacted = false;
 let pendingWorker = null, reloadingForUpdate = false;
 
 // ---------------------------------------------------------------- persistence
@@ -100,15 +101,12 @@ function relayout() {
   place($('assist'), lay.assist);
   $('banner').style.left = lay.cx + 'px';   // top is set per banner, away from the cue ball
   const th = $('thinking'); th.style.left = (lay.cx - 30) + 'px'; th.style.top = (lay.table.y + 14) + 'px';
-  reveal();
+  app.classList.remove('booting');
   input?.showPower(0);
   positionCoach();
   if (overlay === 'diag') fillDiag();
   requestRender();
 }
-// The screen stays the launch colour until the table is painted (it's painted off the main thread, see render.js),
-// and while an update reloads the page, so a button is never on screen when a tap on it can't work.
-function reveal() { if (renderer.ready && !reloadingForUpdate) $('app').classList.remove('booting'); }
 let relayoutTimer = 0;
 function scheduleRelayout() {
   cancelAnimationFrame(relayoutTimer);
@@ -261,6 +259,7 @@ function inputEnabled() {
 
 function shoot(p, fromCpu) {
   if (!game || pb) return;
+  interacted = true;
   const speed = FEEL.maxBallSpeed * Math.pow(p, FEEL.powerCurve);
   const shot = fromCpu?.shot || { dx: Math.cos(aim), dy: Math.sin(aim), speed, a: spin.a, b: spin.b };
   if (Rules.needsCall(game) && game.called == null) game.called = autoCallPocket();
@@ -414,6 +413,7 @@ function autoCallPocket() {
 
 function setAim(a, src) {
   aim = Math.atan2(Math.sin(a), Math.cos(a));
+  if (src) interacted = true;
   if (Rules.needsCall(game) && !calledManual) game.called = autoCallPocket();
   if (coachTarget === 'table') positionCoach();
   if (settings.tutorial === 0 && (src === 'drag' || src === 'tap')) { tutAim += 1; if (tutAim > 8 || src === 'tap') { settings.tutorial = 1; saveSettings(); showTutorial(); } }
@@ -719,7 +719,7 @@ function gameOver(prev) {
     if (humanWon || game.mode === 'pvp') play('pocket', 0.6);
   }
   announce(`${$('over-h').textContent}. ${game.winReason}`);
-  setTimeout(() => { if (game?.phase === 'over' && screenName === 'game') showOverlay('over'); }, prev ? 900 : 0);
+  setTimeout(() => { if (game?.phase === 'over' && screenName === 'game') { showOverlay('over'); applyUpdateIfSafe(); } }, prev ? 900 : 0);
 }
 const esc = (s) => String(s).replace(/[&<>"]/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
 
@@ -812,23 +812,22 @@ function registerSW() {
   }).catch(() => {});
   navigator.serviceWorker.addEventListener('controllerchange', () => { if (reloadingForUpdate) location.reload(); });
 }
-// A reload throws away whatever is on screen, and any tap on it. So an update applies only while nothing can be tapped:
-// at launch before the menu has shown (a version already downloaded is found within milliseconds), or on arriving at
-// the menu, with the screen cleared at once. Found any later, it waits; the pill says so.
-const launching = () => !renderer.ready;
+const launching = () => performance.now() - bootAt < 4000 && !interacted;
+// The download finishes at an arbitrary moment, so reload straight away only if nobody has touched the app yet.
+// Otherwise wait for the next arrival at the menu: a reload that lands while someone is using the menu throws away
+// what they just tapped (the sheet they opened vanishes), so they have to tap again.
 function onUpdateReady(worker) {
   pendingWorker = worker;
   if (!(launching() && applyUpdateIfSafe())) $('update-pill').hidden = false;
 }
+// Apply only where it can't interrupt anything: arriving at the menu or game over, or right after launch before any input.
 function applyUpdateIfSafe() {
-  if (!pendingWorker || reloadingForUpdate) return !!reloadingForUpdate;
-  if (pb || cpu || !(screenName === 'title' || launching())) return false;
+  if (!pendingWorker) return false;
+  const safe = !pb && !cpu && (screenName === 'title' || game?.phase === 'over' || launching());
+  if (!safe) return false;
   saveGame(); flushRec();
   try { sessionStorage.setItem('baize.updated', '1'); } catch { /* ignore */ }
   reloadingForUpdate = true;
-  $('app').classList.add('booting');
-  // If the new version never takes over, carry on with this one rather than leave a blank screen.
-  setTimeout(() => { reloadingForUpdate = false; reveal(); }, 5000);
   pendingWorker.postMessage({ type: 'SKIP_WAITING' });
   return true;
 }
@@ -848,7 +847,7 @@ const app = {
   ballInHandMovable: () => !!(game && game.ballInHand && isHumanTurn()),
   setGrabbing: (v) => { grabbing = v; requestRender(); },
   tryPlaceCue: (x, y) => {
-    if (Rules.placeCueBall(game, x, y)) { requestRender(); return true; }
+    if (Rules.placeCueBall(game, x, y)) { interacted = true; requestRender(); return true; }
     // slide along the obstacle: try moving only one axis
     if (Rules.placeCueBall(game, x, game.balls.y[0]) || Rules.placeCueBall(game, game.balls.x[0], y)) requestRender();
     return false;
@@ -968,7 +967,7 @@ function wire() {
   window.addEventListener('storage', (e) => {
     if (e.key === Store.keyName('game') && screenName === 'game' && !pb && !cpu) adoptStoredGame('Updated from another window');
   });
-  document.addEventListener('pointerdown', unlockAudio, { capture: true, passive: true });
+  document.addEventListener('pointerdown', () => { interacted = true; unlockAudio(); }, { capture: true, passive: true });
 }
 
 function boot() {
@@ -978,10 +977,6 @@ function boot() {
     return;
   }
   renderer.onRestore = requestRender;
-  renderer.onReady = () => { reveal(); requestRender(); };
-  setTimeout(boot2, 0);   // start-up in short tasks: WebGL and shaders here, the rest next, then sound and textures
-}
-function boot2() {
   applySettings();
   loadSounds();
   initRecorder(() => ({ viewport: meas, layout: lay && { table: lay.table, ballPx: lay.ballPx }, version: VERSION }));
@@ -1000,7 +995,6 @@ function boot2() {
   try { if (sessionStorage.getItem('baize.updated')) { sessionStorage.removeItem('baize.updated'); banner('Updated', `Baize ${VERSION}`, '', 2200); } } catch { /* ignore */ }
   registerSW();
   requestRender();
-  setTimeout(initAudio, 0);
   window.__baize = { frameMs, version: VERSION, get screen() { return screenName; }, get overlay() { return overlay; }, get game() { return game; }, get lay() { return lay; }, get pb() { return pb; }, get cpu() { return cpu; }, shoot, setAim, app, settings, get meas() { return meas; } };
 }
 
