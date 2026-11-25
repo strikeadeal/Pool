@@ -288,7 +288,9 @@ Reported on the phone: after launch, starting or restarting a game and other scr
   - **Longest task** and **total blocking time** (the sum over 50 ms) run from the tap that changes the screen to 1.5 s after the new screen's button appears.
   - **Visible→tap** is the time from the frame in which the button first appears to the frame showing the result of tapping it the instant it showed. The tap is real input, through Playwright.
 - **Harness:** `tools/e2e/latency.cjs`. It covers every screen change in the brief, plus size changes and a waiting update at launch, at game over and on quitting to the menu.
-  - `verify.cjs` runs it unthrottled as a regression check (§7b). It fails on any task over 50 ms after a button shows, or on a tap handled more than 100 ms after its button appears.
+  - `verify.cjs` runs it unthrottled as a regression check (§7b). In WebKit, it fails on any task over 50 ms after a button shows, on a tap handled more than 100 ms after its button appears, or on a lost tap. In Chromium it fails only on a lost tap.
+  - The reason for the split: Chromium doesn't show the bug, because its canvas painting is fast. But headless Chromium with software GL has 60–180 ms rendering tasks, with no script in them, at random screen changes. They appear in the old code as well: game over was 108 ms in the old code and 33 ms in the new, and the stats sheet 33 ms and 107 ms.
+  - A button counts as shown when it's visible **and** on top at its centre. Without the second condition, the harness tapped the menu button through the rotate prompt in the frame before the relayout removed it.
 
 ### 13.2 The leads, one by one
 
@@ -328,7 +330,9 @@ Reported on the phone: after launch, starting or restarting a game and other scr
   - Without `OffscreenCanvas` (iOS before 16.4), everything is painted on the main thread as before.
 - **Launch is split into short tasks.**
   - The WebGL context and shaders come first, then the rest of start-up, then audio. Then come the digit, cue and table textures as the worker delivers them.
-  - The screen stays the launch colour until the table is ready **and** the first frame has been drawn, so no button is ever on screen before a tap on it can work.
+  - The screen stays the launch colour until the table is ready, the first frame has been drawn **and** the service worker has said whether an update is waiting. So no button is ever on screen before a tap on it can work, and an update that's already downloaded is applied before the menu shows.
+    - The service-worker check takes milliseconds when a version is installed, as `register()` resolves locally then. On a first visit there's nothing to update, so it doesn't wait. A 1 s cap stops a stuck registration keeping the screen blank.
+    - Before this, in Chromium the menu could appear before the registration resolved, and the waiting update was left for the next launch.
 - **Audio** is created at start-up, suspended.
   - Only the menu tick is synthesised; the other synthesised sounds are made only if their recordings fail to load.
   - The recordings decode one after another, in short tasks.

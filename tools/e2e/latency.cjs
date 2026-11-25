@@ -41,7 +41,9 @@ function monitor(watchSel) {
       const booting = document.getElementById('app')?.classList.contains('booting') ?? true;
       if (el && !booting && el.checkVisibility({ visibilityProperty: true })) {
         const r = el.getBoundingClientRect();
-        if (r.width > 0) { w.at = performance.now(); w.box = [r.x + r.width / 2, r.y + r.height / 2]; return; }
+        const x = r.x + r.width / 2, y = r.y + r.height / 2, top = document.elementFromPoint(x, y);
+        // shown = visible and on top: under the rotate prompt, say, it isn't shown yet
+        if (r.width > 0 && top && el.contains(top)) { w.at = performance.now(); w.box = [x, y]; return; }
       }
       requestAnimationFrame(look);
     };

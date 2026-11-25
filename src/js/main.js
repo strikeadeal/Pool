@@ -109,9 +109,13 @@ function relayout() {
 // The screen stays the launch colour until the table is painted (it's painted off the main thread, see render.js),
 // and while an update reloads the page, so a button is never on screen when a tap on it can't work.
 // It shows a task after the first frame is drawn, so that frame's work (the first draw of the table) isn't in the
-// way of the first tap.
-let drawn = false;
-function reveal() { if (renderer.ready && drawn && !reloadingForUpdate) $('app').classList.remove('booting'); }
+// way of the first tap. It also waits for the service worker check, so an update already downloaded is applied before
+// the menu shows rather than left for the next launch (registerSW).
+let drawn = false, swChecked = false, shown = false;
+function reveal() {
+  if (!renderer.ready || !drawn || !swChecked || reloadingForUpdate) return;
+  shown = true; $('app').classList.remove('booting');
+}
 let relayoutTimer = 0;
 function scheduleRelayout() {
   cancelAnimationFrame(relayoutTimer);
@@ -804,6 +808,11 @@ function openShotList() {
 
 // ---------------------------------------------------------------- service worker & updates
 function registerSW() {
+  const checked = () => { if (!swChecked) { swChecked = true; reveal(); } };
+  // No controller means a first visit, with nothing to update. With one, register() resolves locally, within
+  // milliseconds; the cap only stops a stuck registration keeping the screen blank.
+  if (!('serviceWorker' in navigator) || VERSION.startsWith('__') || !navigator.serviceWorker.controller) checked();
+  else setTimeout(checked, 1000);
   if (!('serviceWorker' in navigator) || VERSION.startsWith('__')) return;   // unbuilt dev copy: no service worker
   navigator.serviceWorker.register('./sw.js', { scope: './', updateViaCache: 'none' }).then((reg) => {
     window.__swReg = reg;
@@ -811,13 +820,14 @@ function registerSW() {
     if (reg.waiting && navigator.serviceWorker.controller) onUpdateReady(reg.waiting);
     watch(reg.installing);   // one already downloading when the page started (a launch right after a deploy)
     reg.addEventListener('updatefound', () => watch(reg.installing));
-  }).catch(() => {});
+    checked();
+  }).catch(checked);
   navigator.serviceWorker.addEventListener('controllerchange', () => { if (reloadingForUpdate) location.reload(); });
 }
 // A reload throws away whatever is on screen, and any tap on it. So an update applies only while nothing can be tapped:
 // at launch before the menu has shown (a version already downloaded is found within milliseconds), or on arriving at
 // the menu, with the screen cleared at once. Found any later, it waits; the pill says so.
-const launching = () => !renderer.ready;
+const launching = () => !shown;
 function onUpdateReady(worker) {
   pendingWorker = worker;
   // a newer version finished while switching to the last one, which it has replaced: it's the one to switch to
