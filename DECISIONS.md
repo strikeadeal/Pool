@@ -286,7 +286,9 @@ Reported on the phone: after launch, starting or restarting a game and other scr
 - **Measures:**
   - WebKit has no Long Tasks API, so a 4 ms timer loop stands in: a gap over 50 ms is a long task.
   - **Longest task** and **total blocking time** (the sum over 50 ms) run from the tap that changes the screen to 1.5 s after the new screen's button appears.
-  - **Visible→tap** is the time from the frame in which the button first appears to the frame showing the result of tapping it the instant it showed. The tap is real input, through Playwright.
+  - **Tap handled** is the time from the frame in which the button first appears to its click handler running, for a tap sent the instant it showed. **Result painted** runs to the frame that shows the result. The tap is real input, through Playwright, so both include the harness's own reaction time, about 10–30 ms.
+  - The longest task covers the whole window, so it includes work the tap itself starts, such as opening the next sheet for the first time. A row can show a long task that didn't delay its tap. Tap handled is the direct measure of the complaint.
+  - Each configuration ran three times, because single runs in this container varied by tens of milliseconds and sometimes far more. The tables show the median, with the worst single run in brackets.
 - **Harness:** `tools/e2e/latency.cjs`. It covers every screen change in the brief, plus size changes and a waiting update at launch, at game over and on quitting to the menu.
   - `verify.cjs` runs it unthrottled as a regression check (§7b). In WebKit, it fails on any task over 50 ms after a button shows, on a tap handled more than 100 ms after its button appears, or on a lost tap. In Chromium it fails only on a lost tap.
   - The reason for the split: Chromium doesn't show the bug, because its canvas painting is fast. But headless Chromium with software GL has 60–180 ms rendering tasks, with no script in them, at random screen changes. They appear in the old code as well: game over was 108 ms in the old code and 33 ms in the new, and the stats sheet 33 ms and 107 ms.
