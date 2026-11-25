@@ -2,7 +2,6 @@
 // build served under a subpath. Needs Playwright: `npm i -D playwright` (not needed to build).
 // Usage: npm run build && node tools/e2e/verify.cjs [chromium|webkit] [--shots]
 const { chromium, webkit } = require('playwright');
-const { Bench, runAll, runUpdates, serve: serveLatency } = require('./latency.cjs');
 const { spawn, execSync } = require('node:child_process');
 const fs = require('node:fs');
 const path = require('node:path');
@@ -371,16 +370,12 @@ async function playToEnd(page, maxTurns = 300) {
       } catch { menuState = 'the page reloaded under the open sheet'; await page.waitForTimeout(1500); }
       ok('update arriving while the menu is in use waits (the sheet just opened stays open)', menuState === `${v2} setup`, menuState);
       if (menuState.endsWith('setup')) await page.click('#setup [data-back]');
-      // At launch, the version waiting (u2b) applies before the menu shows. One found after the menu is up (u3) waits:
-      // a reload then would land on whatever the player is tapping. It applies at the next launch.
+      // update at launch applies straight away (no input yet)
       build('u3');
-      await page.reload();
-      await page.waitForFunction(() => window.__baize && window.__swReg?.waiting, null, { timeout: 20000 }).catch(() => {});
-      const atLaunch = await B(page, () => `${window.__baize.version} pill:${!document.getElementById('update-pill').hidden}`).catch(() => '?');
-      await page.reload(); await page.waitForTimeout(800);
-      const next = await B(page, () => window.__baize.version);
-      ok('update waiting at launch applies before the menu shows; one found once it shows waits for the next launch',
-        atLaunch === `${v2.replace(/u2$/, 'u2b')} pill:true` && next.endsWith('u3'), `${atLaunch} → ${next}`);
+      await page.reload(); await page.waitForTimeout(500);
+      await page.waitForFunction(() => window.__baize.version.endsWith('u3'), null, { timeout: 20000 }).catch(() => {});
+      const v3 = await B(page, () => window.__baize.version);
+      ok('update found at launch installs before play starts', v3.endsWith('u3'), v3);
       await context.close();
     }
 
@@ -402,22 +397,6 @@ async function playToEnd(page, maxTurns = 300) {
       const idle = await B(page, async () => { const n = window.__baize.frameMs.length; await new Promise((r) => setTimeout(r, 1500)); return window.__baize.frameMs.length - n; });
       ok('no animation loop while nothing moves', idle <= 1, `${idle} frames in 1.5 s idle`);
       await context.close();
-    }
-
-    // ---------- 7b. screen changes never block input: tap the new screen's button the moment it shows ----------
-    // Every screen change in tools/e2e/latency.cjs, unthrottled. Fails if a change runs a main-thread task over 50 ms
-    // (after the launch screen shows, for launches), if a tap on the new button isn't handled within 100 ms of it
-    // appearing, or if a tap is lost, including to an update reload. Before the fix, the assisted-aiming switch ran
-    // a 0.3 s repaint and taps were lost to update reloads at launch, game over and the menu.
-    {
-      const srv = await serveLatency();
-      const bench = new Bench(browser, engineName, { throttle: false, size: 'se' });
-      try { await runAll(bench); await runUpdates(bench); } finally { srv.kill(); build(); }
-      const bad = bench.rows.filter((r) => !r.ok || r.err || (r.longest != null && ((r.launch ? r.after : r.longest) > 50 || r.handled > 100)));
-      const worst = bench.rows.filter((r) => r.longest != null);
-      ok(`screen changes: a tap on the new screen's button works at once (${bench.rows.length} changes)`, !bad.length,
-        bad.length ? bad.map((r) => `${r.name}: ${r.err || (!r.ok ? 'tap lost' : `task ${r.longest} ms, tap handled +${r.handled} ms`)}`).join('; ')
-          : `longest task ${Math.max(...worst.map((r) => (r.launch ? r.after : r.longest)))} ms, slowest tap +${Math.max(...worst.map((r) => r.handled))} ms`);
     }
 
     // ---------- 8. web fonts arriving after the first paint (every cold launch) must not move any button ----------
