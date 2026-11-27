@@ -28,7 +28,6 @@ let aim = 0;                // radians, world frame
 let spin = { a: 0, b: 0 };
 let power = 0, powerLive = false;
 let assistPower = 0.4;
-let calledManual = false;
 let pb = null;              // shot playback
 let cpu = null;             // computer turn in progress
 let grabbing = false;
@@ -165,14 +164,15 @@ function buildScene() {
   // Kitchen line while placing the cue ball for the break
   if (screenName !== 'game') return scene;
   if (!pb && game.ballInHand === 'kitchen') scene.under.push((r) => r.bar(HEAD_X, 0.01, HEAD_X, W - 0.01, 0.0025, [1, 1, 1, 0.3], 0.03));
-  // Called pocket for the 8
+  // Called pocket for the 8. Until it's fixed every pocket is ringed, inviting a tap; once fixed, only that one.
   const calling = !pb && Rules.needsCall(game) && (human || cpu);
   if (calling) {
+    const fixed = Rules.eightPocket(game) != null;
     scene.under.push((r) => {
       for (let p = 0; p < 6; p++) {
         const [hx, hy, hr] = holeCentre(p);
         if (p === game.called) { r.ring(hx, hy, hr + 0.014, 0.006, [0.96, 0.75, 0.09, 0.95]); r.disc(hx, hy, hr * 0.35, [0.96, 0.75, 0.09, 0.9]); }
-        else r.ring(hx, hy, hr + 0.01, 0.002, [1, 1, 1, 0.22]);
+        else if (!fixed) r.ring(hx, hy, hr + 0.01, 0.002, [1, 1, 1, 0.22]);
       }
     });
   }
@@ -270,8 +270,11 @@ function shoot(p, fromCpu) {
   if (!game || pb) return;
   const speed = FEEL.maxBallSpeed * Math.pow(p, FEEL.powerCurve);
   const shot = fromCpu?.shot || { dx: Math.cos(aim), dy: Math.sin(aim), speed, a: spin.a, b: spin.b };
-  if (Rules.needsCall(game) && game.called == null) game.called = autoCallPocket();
-  if (!Rules.needsCall(game)) game.called = fromCpu ? fromCpu.called : null;
+  if (Rules.needsCall(game)) {
+    game.called = Rules.eightPocket(game) ?? (fromCpu ? fromCpu.called : game.called);
+    // The first shot at the 8 fixes its pocket for the rest of the game, so the player must choose it.
+    if (game.called == null && !fromCpu) { powerLive = false; power = 0; askForCall(); requestRender(); return; }
+  } else game.called = fromCpu ? fromCpu.called : null;
   recShot(shot, { power: p, aimDeg: +(aim / DEG).toFixed(4), mode: game.mode, cpu: !!fromCpu });
   powerLive = false; power = 0;
   pb = { shot, p: fromCpu ? Math.pow(shot.speed / FEEL.maxBallSpeed, 1 / FEEL.powerCurve) : p, sim: new Sim(game.balls, shot), t: 0, strike: 0, speed: 1,
@@ -366,7 +369,6 @@ function finishShot() {
   announce([report.title, report.detail].filter(Boolean).join('. '));
   if (report.turnChange && game.mode === 'pvp') { lockUntil = performance.now() + 700; setTimeout(updateControls, 710); }
   spin = { a: 0, b: 0 }; updateSpinUi();
-  calledManual = false;
   if (game.mode !== 'practice' && game.phase !== 'over') game.called = null;
   saveGame();
   setupTurn(false, prev);
@@ -397,31 +399,20 @@ function setupTurn(resumed, prev) {
   if (resumed && game.ui) { aim = game.ui.aim ?? defaultAim(); spin = game.ui.spin || { a: 0, b: 0 }; }
   else if (!prev || prev.turn !== game.turn || game.ballInHand || prev.phase === 'break') aim = defaultAim();
   updateSpinUi();
-  if (Rules.needsCall(game) && game.called == null) game.called = autoCallPocket();
+  if (Rules.needsCall(game)) game.called = Rules.eightPocket(game) ?? game.called;   // a resumed game keeps a call not yet shot
   if (!isHumanTurn()) startCpu();
   else { showTutorial(); if (settings.assist) updateAssist(); }
   requestRender();
 }
 
-function autoCallPocket() {
-  const pr = predict(game.balls, Math.cos(aim), Math.sin(aim));
-  const b = game.balls;
-  let ox, oy;
-  if (pr.kind === 'ball' && pr.ball === 8) { ox = pr.ox; oy = pr.oy; }
-  else { ox = b.x[8] - b.x[0]; oy = b.y[8] - b.y[0]; const l = Math.hypot(ox, oy) || 1; ox /= l; oy /= l; }
-  let best = 0, bd = -2;
-  for (let p = 0; p < 6; p++) {
-    const [hx, hy] = holeCentre(p);
-    const dx = hx - b.x[8], dy = hy - b.y[8], l = Math.hypot(dx, dy);
-    const d = (dx * ox + dy * oy) / l;
-    if (d > bd) { bd = d; best = p; }
-  }
-  return best;
+function askForCall() {
+  haptic('heavy');
+  coach('Tap a pocket to call the 8', 'table');
+  announce('Call a pocket for the 8 first. Tap a pocket: it stays your pocket for the rest of the game.');
 }
 
 function setAim(a, src) {
   aim = Math.atan2(Math.sin(a), Math.cos(a));
-  if (Rules.needsCall(game) && !calledManual) game.called = autoCallPocket();
   if (coachTarget === 'table') positionCoach();
   if (settings.tutorial === 0 && (src === 'drag' || src === 'tap')) { tutAim += 1; if (tutAim > 8 || src === 'tap') { settings.tutorial = 1; saveSettings(); showTutorial(); } }
   requestRender();
@@ -584,6 +575,7 @@ function announce(text) { const l = $('live'); l.textContent = ''; setTimeout(()
 // ---------------------------------------------------------------- tutorial
 function showTutorial() {
   if (!game || game.mode === undefined || !isHumanTurn() || screenName !== 'game' || overlay) return hideCoach();
+  if (Rules.needsCall(game) && game.called == null) return coach('Tap a pocket to call the 8', 'table');
   const step = settings.tutorial;
   if (step === 0) coach('Drag on the table to aim', 'table');
   else if (step === 1) coach('Pull down to shoot', 'power');
@@ -670,7 +662,7 @@ function newGameFor(mode, from) {
 function startGame(mode, breaker = 0, from = null) {
   game = newGameFor(mode, from);
   if (breaker) { game.turn = breaker; game.breaker = breaker; }
-  pb = null; cpu = null; spin = { a: 0, b: 0 }; calledManual = false;
+  pb = null; cpu = null; spin = { a: 0, b: 0 };
   overlayStack = []; if (overlay) { $(overlay).hidden = true; overlay = null; }
   showScreen('game');
   saveGame();
@@ -780,7 +772,8 @@ function openShotList() {
   if (game.phase === 'break') {
     add('Break <small>(full power into the rack)</small>', () => { setAim(defaultAim(), 'assist'); assistPower = 1; updateAssist(); hideOverlay('shots'); announce('Aimed at the rack. Power 100 percent.'); });
   }
-  const cands = game.phase === 'break' ? [] : potCandidates(game).slice(0, 14);
+  const fixed = Rules.needsCall(game) ? Rules.eightPocket(game) : null;
+  const cands = game.phase === 'break' ? [] : potCandidates(game).filter((c) => fixed == null || c.pocket === fixed).slice(0, 14);
   if (game.phase !== 'break') {
     // Always offer a plain hit on each legal ball (a safety), so there's never a dead end.
     for (const i of Rules.legalTargets(game)) {
@@ -795,7 +788,7 @@ function openShotList() {
     btn.innerHTML = `${c.target === 8 ? 'The 8' : esc(c.target + ' ball')} → ${esc(Rules.POCKET_NAMES[c.pocket])} pocket <small>(${diff})</small>`;
     btn.onclick = () => {
       setAim(Math.atan2(c.dy, c.dx), 'assist');
-      if (Rules.needsCall(game)) { game.called = c.pocket; calledManual = true; }
+      if (Rules.needsCall(game) && fixed == null) { game.called = c.pocket; hideCoach(); }
       assistPower = Math.min(1, Math.max(0.15, Math.pow(Math.min(FEEL.maxBallSpeed, 1.6 + c.dist + c.objDist) / FEEL.maxBallSpeed, 1 / FEEL.powerCurve)));
       updateAssist();
       hideOverlay('shots');
@@ -868,11 +861,14 @@ const app = {
     return false;
   },
   pocketAt: (wx, wy) => {
-    if (!Rules.needsCall(game)) return -1;
+    if (!Rules.needsCall(game) || Rules.eightPocket(game) != null) return -1;   // fixed: a tap there aims
     for (let p = 0; p < 6; p++) { const [hx, hy, hr] = holeCentre(p); if (Math.hypot(wx - hx, wy - hy) < hr + 0.05) return p; }
     return -1;
   },
-  callPocket: (p) => { game.called = p; calledManual = true; haptic(); announce(`Calling the 8 in the ${Rules.POCKET_NAMES[p]} pocket`); requestRender(); },
+  callPocket: (p) => {
+    game.called = p; haptic(); showTutorial();
+    announce(`Calling the 8 in the ${Rules.POCKET_NAMES[p]} pocket. It's fixed once you take the shot.`); requestRender();
+  },
   setPower: (p, live) => { power = p; powerLive = live; requestRender(); },
   shoot: (p) => shoot(p),
   fineDone: () => { if (settings.tutorial === 2) { settings.tutorial = 3; saveSettings(); hideCoach(); } },

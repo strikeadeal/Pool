@@ -41,6 +41,7 @@ Commands: `node tools/e2e/verify.cjs chromium --shots` and `node tools/e2e/verif
 | **Update waiting at launch** applies before the menu shows, so no tap is lost to the reload. One found after the menu is up waits for the next launch. | pass (Chromium: see §2.1) |
 | **Screen changes** (§2.1): at every screen change, a tap on the new screen's button the moment it appears works. In WebKit, no task over 50 ms after it appears, and the tap is handled within 100 ms. | WebKit: pass, longest 43 ms, slowest tap +31 ms. Chromium: no tap lost |
 | **Update while the menu is in use:** the new version waits, and the sheet just opened stays open. Before the fix the page reloaded under the player and threw the tap away. | pass |
+| **Calling the 8:** with no pocket called, pulling the power bar doesn't shoot and the hint asks for a call; the first shot at the 8 fixes the pocket; back on that player's turn it's already called and taps on other pockets don't change it | pass |
 | **Fonts landing late** (every cold launch): no button on any screen moves when the web fonts replace the fallback, at standard, SE and 568×320. Before the fix, buttons moved by up to 198 px. | 3/3 |
 | JS time per frame during a break with **4× CPU throttling** (SE-sized screen) | median 0.8 ms, 95th percentile 7.7 ms, worst 24.3 ms (one frame) |
 | No animation frames while idle | 0 frames in 1.5 s |

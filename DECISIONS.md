@@ -41,12 +41,13 @@ The base is the **WPA World Standardised Rules for 8-ball** (2025 edition, verif
 | 8 potted on break | Breaker chooses: re-spot the 8 and continue, or re-break | Same | |
 | 8 potted on break + scratch | Incoming player chooses: re-spot the 8 with ball in hand, or re-rack and break | Similar | |
 | Groups | The table is open after the break. Groups are set by the **first object ball legally potted** after the break. | Set by the called ball | No per-shot calling (see next row) |
-| Calling | **Only the 8 is called.** The game pre-selects the pocket the guide line points at, and a tap on a pocket changes it. | Call shot (obvious balls exempt) | Calling every ball on a phone is slow and error-prone. Calling only the 8 is the convention every mobile pool game uses. |
+| Calling | **Only the 8 is called.** Nothing is pre-selected: on reaching the 8 the player taps a pocket, and can't shoot until they do. | Call shot (obvious balls exempt) | Calling every ball on a phone is slow and error-prone. Calling only the 8 is the convention every mobile pool game uses. |
+| **The 8's pocket is fixed** | Each player's call is fixed by their first shot at the 8 (pot, miss or foul) and holds until the game ends. Calling another pocket later changes nothing; the 8 in any other pocket loses. Before that first shot the call can still be changed, so a mis-tap isn't permanent. | Called afresh on every shot at the 8 | Requested by the owner: a house rule that rewards planning the 8 from the start. Each player has their own pocket. The computer is held to its pocket too; when it fixes one on a shot that leaves the 8 up, it takes the pocket nearest where the 8 stops (it used to fall back to the bottom-left). Saved games from before the rule start with no pocket fixed. |
 | Open table, 8 hit first | Foul | Same | |
 | Legal shot | First contact is with your group (any non-8 on an open table, the 8 once your group is clear). Then a ball is potted or any ball touches a cushion. | Same | |
 | Foul penalty | Opponent gets ball in hand anywhere. Object balls potted on a foul stay down. | Same | |
 | Turn continues | Legal shot that pots at least one of your own balls (any non-8 on an open table) | Same, by called ball | |
-| Loss | 8 potted before your group is clear (including on the same shot as your last ball), 8 in an uncalled pocket, or 8 potted on a foul | Same | |
+| Loss | 8 potted before your group is clear (including on the same shot as your last ball), 8 in any pocket but the shooter's called (or fixed) pocket, or 8 potted on a foul | Same | |
 | **Calling optional** | Setup offers **8-ball pocket: Call it / Any pocket**, for both computer and pass-and-play games. Default is Call it; the last choice is remembered. With Any pocket, the 8 in any pocket wins, but early or on a foul still loses. | Always called | Players asked for it; many casual tables don't call the 8. Games saved before the option keep calling. The computer needs no change: it judges candidate shots through the same rules code. |
 | Scratch while on the 8 (8 not potted) | Foul only, not a loss | Same | |
 | Three fouls | Not a rule | Not in WPA 8-ball | |

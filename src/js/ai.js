@@ -2,7 +2,7 @@
 // simulated with the real physics and judged with the real rules, then executed with
 // level-dependent aim and pace error. think() is a generator so the UI can time-slice it.
 import { R, L, W, N, HEAD_X, FOOT_X, TABLE, simulate, ghostAim, canPlace, predict, rng } from './physics.js';
-import { judge, legalTargets, onEight } from './rules.js';
+import { judge, legalTargets, onEight, eightPocket } from './rules.js';
 import { FEEL } from './feel.js';
 
 export const LEVELS = {
@@ -93,14 +93,21 @@ function scoreResult(state, sim, me, lvl) {
   return score;
 }
 
-// Simulate and score a shot; returns [score, called]. called = 'drop' (a safety or kick while on
-// the 8) calls the pocket the 8 would drop in, as a player calls the pocket they're playing for.
-// Calling a fixed pocket made the computer foul on purpose rather than pot the 8 "uncalled".
+// Simulate and score a shot; returns [score, called]. called = 'drop' (a safety or kick on the first
+// shot at the 8) calls the pocket the 8 would drop in, as a player calls the pocket they're playing for.
+// Calling a fixed pocket made the computer foul on purpose rather than pot the 8 "uncalled". If the 8
+// stays up, the call is the pocket nearest where it stops: the call holds for the rest of the game.
 function* evaluate(state, shot, called, me, lvl) {
   const sim = simulate(state.balls, shot, { record: false });
-  if (called === 'drop') called = sim.outcome().pocketed.find((q) => q.b === 8)?.p ?? 0;
+  if (called === 'drop') called = sim.outcome().pocketed.find((q) => q.b === 8)?.p ?? nearestPocket(sim.finalBalls(), 8);
   yield;
   return [scoreResult({ ...state, called }, sim, me, lvl), called];
+}
+
+function nearestPocket(balls, i) {
+  let best = 0, bd = Infinity;
+  for (let p = 0; p < 6; p++) { const pk = TABLE.pockets[p], d = Math.hypot(pk.mx - balls.x[i], pk.my - balls.y[i]); if (d < bd) { bd = d; best = p; } }
+  return best;
 }
 
 // Choose where to put the cue ball with ball in hand.
@@ -183,7 +190,8 @@ export function* think(state, level, seed) {
     return { place, called: null, shot: { dx, dy, speed: MAX_V * (0.92 + r() * 0.08), a: 0, b: -0.1 } };
   }
   const eight = onEight(work, me);
-  const cands = potCandidates(work).slice(0, lvl.candidates);
+  const fixed = eight ? eightPocket(work, me) : null;   // once fixed, the 8 only goes in this pocket
+  const cands = potCandidates(work).filter((c) => fixed == null || c.pocket === fixed).slice(0, lvl.candidates);
   let best = null, bestScore = -Infinity;
   const variants = [
     { k: 1, b: 0 }, { k: 1.5, b: 0.3 }, { k: 1.25, b: -0.35 },
@@ -204,7 +212,7 @@ export function* think(state, level, seed) {
     const tryAll = function* (tries) {
       for (const t of tries) {
         const shot = { ...t, a: 0, b: 0 };
-        const [sc, called] = yield* evaluate(work, shot, eight ? 'drop' : null, me, lvl);
+        const [sc, called] = yield* evaluate(work, shot, eight ? fixed ?? 'drop' : null, me, lvl);
         if (sc > bestScore) { bestScore = sc; best = { shot, called }; }
       }
     };
@@ -221,7 +229,7 @@ export function* think(state, level, seed) {
       for (let k = 0; k < 36; k++) { const a = (k / 36) * Math.PI * 2; sweep.push({ dx: Math.cos(a), dy: Math.sin(a), speed: 2.2 }); }
       yield* tryAll(sweep);
     }
-    if (!best) best = { shot: { dx: 1, dy: 0, speed: 2, a: 0, b: 0 }, called: eight ? 0 : null };
+    if (!best) best = { shot: { dx: 1, dy: 0, speed: 2, a: 0, b: 0 }, called: eight ? fixed ?? nearestPocket(b, 8) : null };
   }
   // Execute with human-like error. A player still hits the ball they aim at, though: an error that
   // would miss it altogether or clip another ball first is drawn again. The computer misses pots,

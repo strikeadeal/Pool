@@ -161,6 +161,50 @@ test('8 ball: calling defaults on, and a saved game without the field still call
   assert.equal(shot(s, { first: 8, pocketed: [[8, 0]] }).state.winner, 1);
 });
 
+test('8 ball: the first shot at the 8 fixes the called pocket for the rest of the game', () => {
+  let s = midGame({ clear: SOLIDS }); s.called = 3;
+  let r = shot(s, { first: 8, pocketed: [] });                   // missed: Bia's turn, Ana's call stays
+  assert.deepEqual(r.state.eightPocket, [3, null]);
+  assert.equal(r.state.turn, 1);
+  assert.equal(Rl.eightPocket(r.state, 0), 3);
+  // Back to Ana. Calling another pocket doesn't move it: the 8 there loses, the 8 in the first pocket wins.
+  s = { ...r.state, turn: 0, called: 5 };
+  r = shot(s, { first: 8, pocketed: [[8, 5]] });
+  assert.equal(r.state.winner, 1, 'other pocket loses');
+  assert.match(r.state.winReason, /top-left pocket, not the called top-right/);
+  s = { ...s, called: null };
+  r = shot(s, { first: 8, pocketed: [[8, 3]] });
+  assert.equal(r.state.winner, 0, 'the fixed pocket wins with no call on this shot');
+});
+
+test('8 ball: each player fixes their own pocket, and a foul on the 8 keeps it', () => {
+  let s = midGame({ clear: [...SOLIDS, ...STRIPES] }); s.called = 0;
+  let r = shot(s, { first: 8, pocketed: [[0, 2]] });            // Ana scratches on her first shot at the 8
+  assert.deepEqual(r.state.eightPocket, [0, null]);
+  s = { ...r.state, called: 4 };                                // Bia's first shot at the 8: she calls her own
+  r = shot(s, { first: 8, pocketed: [] });
+  assert.deepEqual(r.state.eightPocket, [0, 4]);
+});
+
+test('8 ball: nothing is fixed without a call, with calling off, or before the 8', () => {
+  let s = midGame({ clear: SOLIDS }); s.called = null;
+  assert.deepEqual(shot(s, { first: 8, pocketed: [] }).state.eightPocket, [null, null], 'no call');
+  s = midGame({ clear: SOLIDS }); s.callEight = false; s.called = 2;
+  assert.deepEqual(shot(s, { first: 8, pocketed: [] }).state.eightPocket, [null, null], 'calling off');
+  s = midGame(); s.called = 2;
+  assert.deepEqual(shot(s, { first: 3, pocketed: [] }).state.eightPocket, [null, null], 'not on the 8');
+  s = midGame({ clear: SOLIDS }); delete s.eightPocket; s.called = 1;    // a game saved before the rule
+  assert.deepEqual(shot(s, { first: 8, pocketed: [] }).state.eightPocket, [1, null]);
+});
+
+test('8 ball: reaching the 8 asks for a call, and the status names a fixed pocket', () => {
+  const s = midGame({ clear: [1, 2, 3, 4, 5, 6] });
+  const { state, report } = shot(s, { first: 7, pocketed: [[7, 2]] });
+  assert.match(report.detail, /on the 8\. Call a pocket for it: it can’t be changed after the first shot at it\./);
+  state.eightPocket = [3, null];
+  assert.match(Rl.describe(state), /Ana has called the 8 in the top-right pocket\./);
+});
+
 test('8 ball: scratching while on the 8 without potting it is only a foul', () => {
   const s = midGame({ clear: SOLIDS }); s.called = 3;
   const { state } = shot(s, { first: 8, pocketed: [[0, 2]] });

@@ -51,7 +51,7 @@
 | **Shoot** | Pull the power bar down and let go. Slide back to the top to cancel. |
 | **Spin** | Tap the cue ball in the top-right corner and drag the red dot: above centre for follow, below for draw, sides for english. Spin resets after every shot. |
 | **Ball in hand** | Drag the cue ball (it has a ring around it) to place it. |
-| **Calling the 8** | The game suggests a pocket (gold ring); tap another pocket to change it. Choose **8-ball pocket: Any pocket** when you set up a game to play without calling. |
+| **Calling the 8** | When you reach the 8, tap a pocket to call it (gold ring); you can't shoot until you do. Your first shot at the 8 fixes that pocket for the rest of the game. Choose **8-ball pocket: Any pocket** when you set up a game to play without calling. |
 | **Watching** | Tap during a shot to fast-forward. |
 
 Rules (WPA 8-ball, details and deviations in [DECISIONS.md](DECISIONS.md#2-rules)):
@@ -60,7 +60,7 @@ Rules (WPA 8-ball, details and deviations in [DECISIONS.md](DECISIONS.md#2-rules
 - **Groups:** the table is open after the break. The first ball you pot legally makes that group (solids or stripes) yours.
 - **A legal shot:** hit your own group first, then pot a ball or make any ball touch a cushion. Potting one of yours keeps you at the table.
 - **Fouls:** a foul gives your opponent ball in hand anywhere.
-- **The 8:** clear your group, then pot the 8 in the called pocket. Potting it early, in the wrong pocket, or on a foul loses. With **Any pocket** chosen at setup, any pocket wins; early or on a foul still loses.
+- **The 8:** clear your group, call a pocket, then pot the 8 there. The pocket is fixed by your first shot at the 8 and can't be changed after that. Potting it early, in any other pocket, or on a foul loses. With **Any pocket** chosen at setup, any pocket wins; early or on a foul still loses.
 
 The title screen also has **How to play** and **Stats** (games and wins against each computer level, pot rate, best run and fouls, kept on the phone).
 
@@ -96,7 +96,7 @@ npm start         # builds to dist/ and serves it at http://localhost:8080/pool/
 - **Browser tests** (optional; needs Playwright, `npm i -D playwright && npx playwright install chromium webkit`):
 
   ```sh
-  node tools/e2e/verify.cjs chromium --shots   # 31 checks; screenshots into docs/screenshots
+  node tools/e2e/verify.cjs chromium --shots   # 32 checks; screenshots into docs/screenshots
   node tools/e2e/verify.cjs webkit             # the same checks in WebKit (29: the two frame-cost checks are Chromium-only)
   node tools/e2e/latency.cjs webkit --throttle # main-thread blocking and tap response at every screen change, ~4x slower CPU (Linux)
   ```
