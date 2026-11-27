@@ -36,7 +36,8 @@ export function newGame({ mode, players, seed, breaker = 0, callEight = true }) 
     groups: [null, null],
     phase: mode === 'practice' ? 'play' : 'break',
     ballInHand: mode === 'practice' ? 'anywhere' : 'kitchen',
-    called: null,
+    called: null,          // the pocket called for the shot being taken
+    eightPocket: [null, null],   // each player's pocket for the 8, fixed by their first shot at it
     decision: null,
     winner: null,
     winReason: '',
@@ -78,6 +79,9 @@ export function legalTargets(s, p = s.turn) {
 
 // Saved games from before the option have no callEight field: they keep calling.
 export const needsCall = (s) => s.mode !== 'practice' && s.callEight !== false && s.phase === 'play' && onEight(s);
+// A player's pocket for the 8 once fixed: the call on their first shot at the 8 holds until the game ends.
+// Games saved before the rule have no eightPocket field: nothing is fixed yet.
+export const eightPocket = (s, p = s.turn) => s.eightPocket?.[p] ?? null;
 
 // Put the cue ball somewhere legal for ball in hand (used after a scratch).
 export function defaultCuePlacement(s) {
@@ -111,7 +115,7 @@ function rerack(s, breaker) {
   s.phase = 'break';
   s.ballInHand = 'kitchen';
   s.breaker = breaker; s.turn = breaker;
-  s.called = null; s.decision = null; s.visit = 0;
+  s.called = null; s.eightPocket = [null, null]; s.decision = null; s.visit = 0;
 }
 
 const FOUL_TEXT = {
@@ -218,6 +222,9 @@ export function judge(prev, outcome, balls) {
   if (first >= 0 && potted.length === 0 && !outcome.cushionAfterFirst) report.fouls.push('noRail');
   if (scratch) report.fouls.push('scratch');
   const fouled = report.fouls.length > 0;
+  // The pocket for the 8: fixed by the first shot at it (foul or not), then that one whatever is called later.
+  const call = eightPocket(prev, me) ?? prev.called;
+  if (needsCall(prev) && call != null) { s.eightPocket = (prev.eightPocket || [null, null]).slice(); s.eightPocket[me] = call; }
   report.foulText = report.fouls.map((f) => (f === 'wrongFirst' ? wrongFirstText(prev, first) : FOUL_TEXT[f])).join('; ');
 
   // The 8 decides the game.
@@ -226,7 +233,7 @@ export function judge(prev, outcome, balls) {
     let reason = '';
     if (fouled) reason = `potted the 8 on a foul (${report.foulText})`;
     else if (!eight) reason = `potted the 8 before clearing ${names[me] === 'You' ? 'your' : 'their'} group`;
-    else if (prev.callEight !== false && prev.called !== pocket) reason = prev.called == null ? 'potted the 8 without calling a pocket' : `potted the 8 in the ${POCKET_NAMES[pocket]} pocket, not the called ${POCKET_NAMES[prev.called]}`;
+    else if (prev.callEight !== false && call !== pocket) reason = call == null ? 'potted the 8 without calling a pocket' : `potted the 8 in the ${POCKET_NAMES[pocket]} pocket, not the called ${POCKET_NAMES[call]}`;
     s.phase = 'over';
     s.ballInHand = null;
     if (reason) {
@@ -263,7 +270,8 @@ export function judge(prev, outcome, balls) {
     s.visit += myPots;
     s.bestRun[me] = Math.max(s.bestRun[me], s.visit);
     report.title = report.groups ? `${says(names[me], 'takes', 'take')} ${groupName(mine)}` : `Potted ${objPotted.filter((b) => groupOf(b) === mine).join(', ')}`;
-    report.detail = onEight(s, me) ? `${says(names[me], 'is', 'are')} on the 8.` : `${says(names[me], 'shoots', 'shoot')} again.`;
+    report.detail = !onEight(s, me) ? `${says(names[me], 'shoots', 'shoot')} again.`
+      : `${says(names[me], 'is', 'are')} on the 8.${needsCall(s) && eightPocket(s, me) == null ? ' Call a pocket for it: it can’t be changed after the first shot at it.' : ''}`;
   } else {
     s.turn = opp; s.visit = 0;
     report.turnChange = true;
@@ -338,6 +346,7 @@ export function describe(s) {
     parts.push(`${says(n[p], 'has', 'have')} ${groupName(g)}: ${left.length ? left.join(', ') + ' left' : 'all potted, on the 8'}.`);
   }
   if (!s.groups[0] && s.phase !== 'break') parts.push('The table is open.');
+  for (const p of [0, 1]) if (eightPocket(s, p) != null) parts.push(`${says(n[p], 'has', 'have')} called the 8 in the ${POCKET_NAMES[eightPocket(s, p)]} pocket.`);
   if (s.callEight === false) parts.push('8-ball: any pocket.');
   return parts.join(' ');
 }

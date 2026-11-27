@@ -461,6 +461,44 @@ async function playToEnd(page, maxTurns = 300) {
           : `longest task ${Math.max(...worst.map((r) => (r.launch ? r.after : r.longest)))} ms, slowest tap +${Math.max(...worst.map((r) => r.handled))} ms`);
     }
 
+    // ---------- calling the 8: the player must choose a pocket, and the first shot at the 8 fixes it ----------
+    {
+      const { page, context, url } = await newPage(browser, { w: 852, h: 393 });
+      await page.goto(url); await page.waitForTimeout(500);
+      await B(page, () => { window.__baize.settings.tutorial = 3; });
+      await page.click('[data-go="setup-pvp"]'); await page.click('#call-seg [data-v="call"]'); await page.click('#setup-start'); await page.waitForTimeout(300);
+      // Player 1 on the 8: solids gone, the 8 mid-table well away from the pockets.
+      const resume = async () => { await page.click('#menu-btn'); await page.click('#p-quit'); await page.waitForTimeout(200); await page.click('#t-continue'); await page.waitForTimeout(300); };
+      await B(page, () => {
+        const g = window.__baize.game;
+        g.phase = 'play'; g.ballInHand = null; g.groups = ['S', 'T']; g.turn = 0; g.called = null; g.eightPocket = [null, null];
+        for (let i = 1; i <= 7; i++) g.balls.on[i] = 0;
+        g.balls.x[0] = 0.5; g.balls.y[0] = 0.5; g.balls.x[8] = 0.9; g.balls.y[8] = 0.5;
+        for (let i = 9; i < 16; i++) { g.balls.x[i] = 1.2 + (i - 9) * 0.07; g.balls.y[i] = 0.15; }
+      });
+      await resume();
+      const pocketHit = (p) => B(page, async (p) => { const { holeCentre } = await import('./js/textures.js'); const [x, y] = holeCentre(p); return window.__baize.app.pocketAt(x, y); }, p);
+      // No pocket chosen: pulling the power bar doesn't shoot, it asks for a call.
+      await B(page, () => window.__baize.setAim(0));
+      await B(page, () => window.__baize.app.shoot(0.15));
+      const asked = await B(page, () => ({ pb: !!window.__baize.pb, called: window.__baize.game.called, coach: document.getElementById('coach').classList.contains('show') ? document.querySelector('#coach .c-text').textContent : '' }));
+      // Call the top-right pocket by tapping it, then shoot softly at the 8 (it stays up; Player 2's turn).
+      const tapOpen = await pocketHit(3);
+      await B(page, () => window.__baize.app.callPocket(3));
+      await B(page, () => window.__baize.app.shoot(0.15));
+      await waitIdle(page);
+      const after = await B(page, () => ({ fixed: window.__baize.game.eightPocket, turn: window.__baize.game.turn, on8: window.__baize.game.balls.on[8] }));
+      // Back to Player 1: the pocket is already called and a tap on another pocket no longer changes it.
+      await B(page, () => { window.__baize.game.turn = 0; });
+      await resume();
+      const back = await B(page, () => window.__baize.game.called);
+      const tapFixed = await pocketHit(0);
+      ok('calling the 8: no shot until a pocket is called; the first shot at the 8 fixes it for the rest of the game',
+        !asked.pb && asked.called == null && /call the 8/.test(asked.coach) && tapOpen === 3 && after.fixed[0] === 3 && after.turn === 1 && after.on8 === 1 && back === 3 && tapFixed === -1,
+        `asked "${asked.coach}", fixed ${JSON.stringify(after.fixed)}, called on return ${back}, tap elsewhere ${tapFixed}`);
+      await context.close();
+    }
+
     // ---------- 8. web fonts arriving after the first paint (every cold launch) must not move any button ----------
     {
       const boxes = async (fonts, w, h) => {
